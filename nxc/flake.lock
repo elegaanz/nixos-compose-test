@@ -55,16 +55,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1685566663,
-        "narHash": "sha256-btHN1czJ6rzteeCuE/PNrdssqYD2nIA4w48miQAFloM=",
+        "lastModified": 1707091808,
+        "narHash": "sha256-LahKBAfGbY836gtpVNnWwBTIzN7yf/uYM/S0g393r0Y=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4ecab3273592f27479a583fb6d975d4aba3486fe",
+        "rev": "9f2ee8c91ac42da3ae6c6a1d21555f283458247e",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "23.05",
+        "ref": "nixos-23.11",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -108,17 +108,18 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1707059237,
-        "narHash": "sha256-roRPyjOZp8FAk7JKVXHrxIVWwK4FVRwfiWvGH/POV2g=",
-        "ref": "refs/heads/master",
-        "rev": "2050df46dbaebde8729c02f6f2d20c204d81c4db",
-        "revCount": 582,
-        "type": "git",
-        "url": "https://gitlab.inria.fr/nixos-compose/nixos-compose.git"
+        "lastModified": 1707234688,
+        "narHash": "sha256-PdeGv5Sxcvk75gb0uYMH2NalUfpf12ts+RyXFK7Lbpw=",
+        "owner": "elegaanz",
+        "repo": "nixos-compose",
+        "rev": "71624a8c047263f4cf3aa9d5b7131a756ef1ebf1",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "https://gitlab.inria.fr/nixos-compose/nixos-compose.git"
+        "owner": "elegaanz",
+        "ref": "fix-vde-switch-groups",
+        "repo": "nixos-compose",
+        "type": "github"
       }
     },
     "root": {

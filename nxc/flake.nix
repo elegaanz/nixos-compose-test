@@ -2,8 +2,8 @@
   description = "nixos-compose - basic setup";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/23.05";
-    nxc.url = "git+https://gitlab.inria.fr/nixos-compose/nixos-compose.git";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
+    nxc.url = "github:elegaanz/nixos-compose/fix-vde-switch-groups";
   };
 
   outputs = { self, nixpkgs, nxc }:
@@ -18,6 +18,6 @@
       defaultPackage.${system} =
         self.packages.${system}."composition::vm";
 
-      devShell.${system} = nxc.devShells.${system}.nxcShell;
+      devShell.${system} = nxc.devShells.${system}.nxcShellFull;
     };
 }
