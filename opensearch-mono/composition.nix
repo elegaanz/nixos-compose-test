@@ -1,6 +1,6 @@
 { pkgs, ... }: {
   roles = {
-    foo = { pkgs, config, lib, ... }:
+    opensearch = { pkgs, config, lib, ... }:
       {
         environment.systemPackages = with pkgs; [ opensearch vector ];
 
