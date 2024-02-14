@@ -3,7 +3,7 @@
     opensearch = { pkgs, config, lib, ... }:
       {
         environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch vector ];
+        environment.systemPackages = with pkgs; [ opensearch vector jq ];
 
         services.opensearch = {
           enable = true;
@@ -20,10 +20,14 @@
         # Vector est système de gestion de logs
         services.vector = {
           enable = true;
+          journaldAccess = true;
           settings = {
             sources = {
               "in" = {
                 type = "stdin";
+              };
+              "systemd" = {
+                type = "journald";
               };
             };
             sinks = {
@@ -33,6 +37,11 @@
                 encoding = {
                   codec = "text";
                 };
+              };
+              opensearch = {
+                inputs = [ "systemd" ];
+                type = "elasticsearch";
+                endpoints = [ "http://localhost:9200" ];
               };
             };
           };
@@ -57,7 +66,17 @@
     opensearch.wait_for_open_port(9200)
 
     opensearch.succeed(
-        "curl --fail localhost:9200"
+      "curl --fail localhost:9200"
+    )
+
+    opensearch.wait_for_unit("vector.service")
+
+    # The inner curl command uses the Opensearch API and JQ to get the name of the Vector index
+    # (this index contains the current date and thus has a different name every day).
+    # The outer curl call just queries the content of the index and checks that it is in the expected
+    # format with JQ
+    opensearch.succeed(
+      "curl --fail http://localhost:9200/$(curl --fail http://localhost:9200/_stats | jq -r '.indices | keys[]' | grep vector | tail -n 1)/_search | jq '.hits.hits[0]._source'"
     )
   '';
 }
