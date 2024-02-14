@@ -2,6 +2,7 @@
   roles = {
     opensearch = { pkgs, config, lib, ... }:
       {
+        environment.noXlibs = false;
         environment.systemPackages = with pkgs; [ opensearch vector ];
 
         services.opensearch = {
@@ -11,8 +12,8 @@
           # Par défaut, la JVM demande plus de mémoire que ça et ne peut pas démarrer
           # Avec ces options, on limite son utilisation de la RAM
           extraJavaOptions = [
-            "-Xmx512m"  # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-            "-Xms512m"  # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+            "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+            "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
           ];
         };
 
@@ -27,7 +28,7 @@
             };
             sinks = {
               out = {
-                inputs = ["in"];
+                inputs = [ "in" ];
                 type = "console";
                 encoding = {
                   codec = "text";
@@ -51,6 +52,14 @@
   };
 
   testScript = ''
-    foo.succeed("true")
+    opensearch.start()
+    opensearch.execute('sleep 3')
+    opensearch.succeed('journalctl -eu opensearch')
+    opensearch.wait_for_unit("opensearch.service")
+    opensearch.wait_for_open_port(9200)
+
+    opensearch.succeed(
+        "curl --fail localhost:9200"
+    )
   '';
 }
