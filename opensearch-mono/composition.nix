@@ -53,8 +53,6 @@
 
   testScript = ''
     opensearch.start()
-    opensearch.execute('sleep 3')
-    opensearch.succeed('journalctl -eu opensearch')
     opensearch.wait_for_unit("opensearch.service")
     opensearch.wait_for_open_port(9200)
 
