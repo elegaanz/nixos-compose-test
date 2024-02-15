@@ -2,6 +2,8 @@
   roles = {
     opensearch = { pkgs, config, lib, ... }:
       {
+        imports = [ ../opensearch-dashboards.nix ];
+
         environment.noXlibs = false;
         environment.systemPackages = with pkgs; [ opensearch vector jq ];
 
@@ -47,6 +49,8 @@
           };
         };
 
+        services.opensearch-dashboards.enable = true;
+
         environment.variables = {
           # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
           # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
@@ -59,6 +63,8 @@
         };
       };
   };
+
+  dockerPorts.opensearch = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
     opensearch.start()
