@@ -36,6 +36,20 @@ let
       };
     };
   cfg = config.services.opensearch-dashboards;
+  yaml = pkgs.formats.yaml { };
+  # reference : https://opensearch.org/docs/latest/security/configuration/yaml/#internal_usersyml
+  internalUsers = yaml.generate "opensearch-internal-users.yml" {
+    _meta = {
+      type = "internalusers";
+      config_version = 2;
+    };
+    admin = {
+      # password: admin
+      hash = "$2y$12$07pXWAvblDkuC5qeMZgsSOrnWzm5YRdK6yJ.Sscokwc4dnwM.wG12";
+      reserved = true;
+      backend_roles = [ "admin" ];
+    };
+  };
 in
 with lib;
 {
@@ -52,8 +66,6 @@ with lib;
       requires = [ "network-online.target" ];
       serviceConfig =
         let
-          yaml = pkgs.formats.yaml { };
-          json = pkgs.formats.json { };
           conf = yaml.generate "opensearch-dashboard-config.yml" {
             # This is a translation of the default config
             # TODO: make it possible to add / override options with
@@ -78,22 +90,27 @@ with lib;
 
             # plugins.security.restapi.roles_enabled = [ "all_access" ];
           };
-          # reference : https://opensearch.org/docs/latest/security/configuration/yaml/#internal_usersyml
-          opensearchAdmin = json.generate "opensearch-admin.json" {
-            password = "admin";
-            reserved = true;
-            backend_roles = [ "admin" ];
-          };
         in
         {
           ExecStart = "${osd}/bin/opensearch-dashboards --config ${conf}";
-          User = "opensearch";
-          Group = "opensearch";
+          DynamicUser = true;
           StateDirectory = "opensearch-dashboards";
-          # ExecStartPre = mkIf config.services.opensearch.enable ''
-          #   ${pkgs.curl}/bin/curl -vvv --fail -T ${opensearchAdmin} http://localhost:9200/_plugins/_security/api/internalusers/admin
-          # '';
         };
     };
+
+    # Creates an admin user
+    # This file needs to be created by the OpenSearch service, because
+    # the /var/lib/opensearch directory is created by Systemd for a service with a
+    # DynamicUser and cannot be seen by other services
+    systemd.services.opensearch.serviceConfig.ExecStartPre = mkIf config.services.opensearch.enable [
+      "${pkgs.writeShellScript
+      "create-opensearch-admin"
+      ''
+        mkdir -p /var/lib/opensearch/config/opensearch-security/
+        if [[ ! -f /var/lib/opensearch/config/opensearch-security/internal_users.yml ]]; then
+          ${pkgs.coreutils}/bin/cp ${internalUsers} /var/lib/opensearch/config/opensearch-security/internal_users.yml
+        fi
+      ''}"
+    ];
   };
 }
