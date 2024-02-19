@@ -30,7 +30,7 @@ in
               -genkeypair \
               -alias opensearch \
               -storepass '${keystore-password}' \
-              -dname CN=opensearch \
+              -dname CN=localhost \
               -keyalg RSA \
               -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
               -validity 36500
@@ -57,6 +57,7 @@ in
             ${pkgs.coreutils}/bin/rm $cert_file
           ''}"
         ];
+        systemd.services.opensearch.serviceConfig.Restart = lib.mkForce "no";
         systemd.services.opensearch.serviceConfig.ExecStartPost = lib.mkForce [
           "${pkgs.writeShellScript
           "wait-and-run-securityadmin"
@@ -69,7 +70,8 @@ in
                 -ks /var/lib/opensearch/config/ssl-keystore.p12 \
                 -kspass '${keystore-password}' \
                 -ts /var/lib/opensearch/config/ssl-truststore.p12 \
-                -tspass '${truststore-password}'
+                -tspass '${truststore-password}' \
+                -cd /var/lib/opensearch/config/opensearch-security
           ''}"
         ];
 
@@ -83,6 +85,14 @@ in
           settings."plugins.security.ssl.transport.truststore_filepath" = "ssl-truststore.p12";
           settings."plugins.security.ssl.transport.truststore_type" = "PKCS12";
           settings."plugins.security.ssl.transport.truststore_password" = truststore-password;
+          settings."plugins.security.ssl.http.enabled" = true;
+          settings."plugins.security.ssl.http.keystore_filepath" = "ssl-keystore.p12";
+          settings."plugins.security.ssl.http.keystore_type" = "PKCS12";
+          settings."plugins.security.ssl.http.keystore_password" = keystore-password;
+          settings."plugins.security.ssl.http.truststore_filepath" = "ssl-truststore.p12";
+          settings."plugins.security.ssl.http.truststore_type" = "PKCS12";
+          settings."plugins.security.ssl.http.truststore_password" = truststore-password;
+          settings."plugins.security.authcz.admin_dn" = [ "CN=localhost" ];
           # Configuration des options Java supplémentaires (uniquement pour le service "opensearch")
           # Les machines virtuelles créées avec `nxc build -f vm` n'ont qu'un Mo de mémoire vive
           # Par défaut, la JVM demande plus de mémoire que ça et ne peut pas démarrer

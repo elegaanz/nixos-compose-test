@@ -71,7 +71,7 @@ with lib;
             # TODO: make it possible to add / override options with
             # the NixOS module 
             opensearch = {
-              hosts = [ "http://localhost:9200" ];
+              hosts = [ "https://localhost:9200" ];
               ssl.verificationMode = "none";
               username = "kibanaserver";
               password = "kibanaserver";
@@ -106,10 +106,11 @@ with lib;
       "${pkgs.writeShellScript
       "create-opensearch-admin"
       ''
-        mkdir -p /var/lib/opensearch/config/opensearch-security/
-        if [[ ! -f /var/lib/opensearch/config/opensearch-security/internal_users.yml ]]; then
-          ${pkgs.coreutils}/bin/cp ${internalUsers} /var/lib/opensearch/config/opensearch-security/internal_users.yml
-        fi
+        # ${pkgs.coreutils}/bin/mkdir -p /var/lib/opensearch/config/opensearch-security/
+        ${pkgs.coreutils}/bin/cp -r ${pkgs.opensearch}/config/opensearch-security/ /var/lib/opensearch/config/
+        # if [[ ! -f /var/lib/opensearch/config/opensearch-security/internal_users.yml ]]; then
+        #   ${pkgs.coreutils}/bin/cp ${internalUsers} /var/lib/opensearch/config/opensearch-security/internal_users.yml
+        # fi
       ''}"
     ];
   };
