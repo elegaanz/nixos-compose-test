@@ -106,11 +106,9 @@ with lib;
       "${pkgs.writeShellScript
       "create-opensearch-admin"
       ''
-        # ${pkgs.coreutils}/bin/mkdir -p /var/lib/opensearch/config/opensearch-security/
-        ${pkgs.coreutils}/bin/cp -r ${pkgs.opensearch}/config/opensearch-security/ /var/lib/opensearch/config/
-        # if [[ ! -f /var/lib/opensearch/config/opensearch-security/internal_users.yml ]]; then
-        #   ${pkgs.coreutils}/bin/cp ${internalUsers} /var/lib/opensearch/config/opensearch-security/internal_users.yml
-        # fi
+        if [[ ! -d /var/lib/opensearch/config/opensearch-security ]]; then
+          ${pkgs.coreutils}/bin/cp -r ${pkgs.opensearch}/config/opensearch-security/ /var/lib/opensearch/config/
+        fi
       ''}"
     ];
   };

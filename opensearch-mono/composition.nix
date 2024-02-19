@@ -127,7 +127,13 @@ in
               opensearch = {
                 inputs = [ "systemd" ];
                 type = "elasticsearch";
-                endpoints = [ "http://localhost:9200" ];
+                endpoints = [ "https://localhost:9200" ];
+                auth = {
+                  strategy = "basic";
+                  user = "admin";
+                  password = "admin";
+                };
+		tls.verify_certificate = false;
               };
             };
           };
