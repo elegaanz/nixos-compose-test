@@ -22,7 +22,7 @@
     "qemu_script": "/nix/store/i15x1p55kb99771i5kac89rxvrwdarsl-qemu_script",
     "stage1": "/nix/store/969v5fg6c8kpjfmshr5gbp1igf9ikxia-stage-1-init.sh"
   },
-  "compositions_info_path": "/nix/store/y6ip42rm5kx94ckpizmkqvrvprjfk2a4-compositions-info.json",
+  "compositions_info_path": "/nix/store/cwyffnv1br9gil1j5isq55877lxs173b-compositions-info.json",
   "composition": "composition",
   "user": "mounierd"
 }

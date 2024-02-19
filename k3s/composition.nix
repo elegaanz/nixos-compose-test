@@ -34,5 +34,17 @@
   testScript = ''
     server.succeed("true")
     #TODO example:  k3s kubectl get nodes
+    
+    # Vérifie que le serveur est en cours d'exécution
+    server.succeed("systemctl is-active k3s")
+    
+    # Vérifie que l'agent est en cours d'exécution
+    agent.succeed("systemctl is-active k3s-agent")
+    
+    # Vérifie que le serveur peut obtenir les nœuds k3s
+    server.succeed("kubectl get nodes")
+    
+    # Vérifie que l'agent peut se connecter au serveur
+    agent.succeed("curl -k https://server:6443")
   '';
 }
