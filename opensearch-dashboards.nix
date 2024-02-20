@@ -71,7 +71,7 @@ with lib;
             # TODO: make it possible to add / override options with
             # the NixOS module 
             opensearch = {
-              hosts = [ "https://localhost:9200" ];
+              hosts = [ "https://127.0.0.1:9200"];
               ssl.verificationMode = "none";
               username = "kibanaserver";
               password = "kibanaserver";

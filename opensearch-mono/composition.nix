@@ -63,7 +63,7 @@ in
           "wait-and-run-securityadmin"
           ''
             # wait for opensearch to start
-            sleep 10
+            sleep 100
 
             ${pkgs.coreutils}/bin/env JAVA_HOME="${pkgs.jre_headless}" \
               /var/lib/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
@@ -127,7 +127,7 @@ in
               opensearch = {
                 inputs = [ "systemd" ];
                 type = "elasticsearch";
-                endpoints = [ "https://localhost:9200" ];
+                endpoints = ["https://127.0.0.1:9200"];
                 auth = {
                   strategy = "basic";
                   user = "admin";
