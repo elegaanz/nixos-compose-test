@@ -1,0 +1,6 @@
+[book]
+authors = [ "Élise Dupont", "Ana Gelez", "Mathis Grange", "Dorian Mounier" ]
+language = "fr"
+multilingual = false
+src = "src"
+title = "Tests d'infrastructures avec NixOS"
