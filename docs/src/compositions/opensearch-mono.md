@@ -4,7 +4,7 @@ Dossier de la composition : `opensearch-mono/`.
 
 Cette composition fait tourner sur un même nœud :
 
-- l'agrégateur de logs [`vector`](https://vector.dev/).
+- l'agrégateur de logs [Vector](https://vector.dev/).
 - un serveur [OpenSearch](https://opensearch.org/).
 - un serveur [OpenSearch Dashboards](https://opensearch.org/docs/latest/dashboards/quickstart/)
 
