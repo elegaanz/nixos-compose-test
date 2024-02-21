@@ -1,0 +1,28 @@
+{
+  "ssh_key.pub": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDLYgdI6qgKQm79NyQQp3Kn9k4wb/oY0D1hWA/NL+1nxXFw/Qdpv+/nunixXD0MfUFbPa4OnLkUkJdM5U1lBQVDPOnvk2ilovliI3c6ocSQ7T3WCDm21sLPrs0b0fRMdEvibvVd4zAYfZom0crXxKLub20iQnLJmzedj5OZIQmaSxRG5d+j5FKA3buJzvRTvgh/rT20O/P5zpdppBgfc39cYXxuzHE2PkB6Vfryhq6y4YWzposbQ9reS2pvtHKOekp9HJH7FsJHJHWon+2qTmIvp6dOGo8RiszoHnASla+Fi9jrEdH5/gOkLazeUYMajpqp1ajUSopRmxDlXGmUvvhwZx74zcFle1f3KvlFV5ajvleWnXhs33WSOLjSo8GoXx87dosFfKz7ILEGklstSZjYDOftv/LOq1B9IVv2FcgS5iO9662UXI/6OHAtGTMjppcUrGe9S+9Y2KWLxwoojfkusFaPKDGdvBtxoxDzbrToIDtSXE3seLBl5UL7dExS9/c= mounierd@mounierd-Aspire-A515-55",
+  "deployment": {
+    "192.168.1.1": {
+      "role": "agent",
+      "host": "agent",
+      "vm_id": 1,
+      "init": "/nix/store/k9j301rw4g8ckfq4pzhvlz1mwa5iakix-nixos-system-unnamed-23.11pre-git/init"
+    },
+    "192.168.1.2": {
+      "role": "server",
+      "host": "server",
+      "vm_id": 2,
+      "init": "/nix/store/7yvhqplh78av0aifgydhy4x3i3klpixf-nixos-system-unnamed-23.11pre-git/init"
+    }
+  },
+  "all": {
+    "all_compositions_registration_store_path": "/nix/store/hd7j7lqlshqqgm5v2jq7jv1rg0iijsn6-all-compositions-registration-store-paths",
+    "init": "/nix/store/kislr5zm6yacfdi2n7hj68d4nkr4ky6i-nixos-system-unnamed-23.11pre-git/init",
+    "initrd": "/nix/store/hrkz0dcc63ni56fwkaiihi6k7vv4q8is-initrd-linux-6.1.77/initrd",
+    "kernel": "/nix/store/wdfgbh0m0kzkxwfx06ran5jxf27q4nqy-image/kernel",
+    "qemu_script": "/nix/store/i15x1p55kb99771i5kac89rxvrwdarsl-qemu_script",
+    "stage1": "/nix/store/969v5fg6c8kpjfmshr5gbp1igf9ikxia-stage-1-init.sh"
+  },
+  "compositions_info_path": "/nix/store/cwyffnv1br9gil1j5isq55877lxs173b-compositions-info.json",
+  "composition": "composition",
+  "user": "mounierd"
+}
