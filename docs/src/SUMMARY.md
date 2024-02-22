@@ -11,6 +11,7 @@
 
 # Travailler avec `nxc`
 
+- [Erreurs communes](nxc/erreurs.md)
 - [Anti-sèche](nxc/cheatsheet.md)
 - [Grid5000](nxc/g5k.md)
 - [Liens utiles](nxc/liens.md)
