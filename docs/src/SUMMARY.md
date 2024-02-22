@@ -14,3 +14,4 @@
 - [Anti-sèche](nxc/cheatsheet.md)
 - [Grid5000](nxc/g5k.md)
 - [Liens utiles](nxc/liens.md)
+- [Configurer son éditeur](nxc/editeur.md)
