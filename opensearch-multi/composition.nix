@@ -10,151 +10,194 @@ let
     });
 in
 {
+  # Useful link :
+  # https://opensearch.org/docs/latest/tuning-your-cluster/
+  # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/cluster-settings/
+  # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/index/#dynamic-settings
+
+
+  # From : https://opensearch.org/docs/latest/security/multi-tenancy/multi-tenancy-config/
+  # The opensearch_dashboards.yml file includes additional settings:
+
+  # opensearch.username: kibanaserver
+  # opensearch.password: kibanaserver
+  # opensearch.requestHeadersAllowlist: ["securitytenant","Authorization"]
+  # opensearch_security.multitenancy.enabled: true
+  # opensearch_security.multitenancy.tenants.enable_global: true
+  # opensearch_security.multitenancy.tenants.enable_private: true
+  # opensearch_security.multitenancy.tenants.preferred: ["Private", "Global"]
+  # opensearch_security.multitenancy.enable_filter: false
+
+  # Multi-tenancy is enabled in OpenSearch Dashboards by default. If you need to disable or change settings related to multi-tenancy, see the kibana settings in config/opensearch-security/config.yml, as shown in the following example:
+
+  # config:
+  #   dynamic:
+  #     kibana:
+  #       multitenancy_enabled: true
+  #       private_tenant_enabled: true
+  #       default_tenant: global tenant
+  #       server_username: kibanaserver
+  #       index: '.kibana'
+  #     do_not_fail_on_forbidden: false
+
+
+  # From : https://opensearch.org/blog/setup-multinode-cluster-kubernetes/
+
+  #  clusterName: "opensearch-cluster"
+  #  nodeGroup: "master"
+  #  masterService: "opensearch-cluster-master"
+  #  roles:
+  #    master: "true"
+  #    ingest: "false"
+  #    data: "false"
+  #    remote_cluster_client: "false"
+  #  replicas: 1
+
+  #  IP remplacer par le nom du role !
   roles = {
-    opensearch = { pkgs, config, lib, ... }:
-      {
-        imports = [ ../opensearch-dashboards.nix ];
+    opensearchMaster = { pkgs, config, lib, ... }: {
+      imports = [ ../opensearch-dashboards.nix ];
 
-        environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch-fixed vector jq ];
+      environment.noXlibs = false;
+      environment.systemPackages = with pkgs; [ opensearch-fixed vector jq ];
 
-        systemd.services.opensearch.serviceConfig.ExecStartPre = [
-          "${pkgs.writeShellScript
-          "init-keystore"
-          ''
-            if [[ -f /var/lib/opensearch/config/ssl-keystore.p12 ]]; then
-              exit 0
-            fi
-
-            ${pkgs.jre_headless}/bin/keytool \
-              -genkeypair \
-              -alias opensearch \
-              -storepass '${keystore-password}' \
-              -dname CN=localhost \
-              -keyalg RSA \
-              -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
-              -validity 36500
-
-            # Create a truststore with our own certificate
-            # export the cert from the keystore
-            cert_file=$(${pkgs.coreutils}/bin/mktemp)
-            ${pkgs.jre_headless}/bin/keytool \
-              -export \
-              -alias opensearch \
-              -storepass '${keystore-password}' \
-              -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
-              -file $cert_file
-
-            # import it
-            ${pkgs.jre_headless}/bin/keytool \
-              -import \
-              -noprompt \
-              -alias opensearch-cert \
-              -storepass '${truststore-password}' \
-              -keystore /var/lib/opensearch/config/ssl-truststore.p12 \
-              -file $cert_file
-            
-            ${pkgs.coreutils}/bin/rm $cert_file
-          ''}"
+      services.opensearch = {
+        settings."node.master" = true;
+        settings."node.data" = false;
+        settings."node.ingest" = false;
+        enable = true;
+        package = opensearch-fixed;
+        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
+        # ajout du plugin de sécurité ?
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
         ];
-        systemd.services.opensearch.serviceConfig.Restart = lib.mkForce "no";
-        systemd.services.opensearch.serviceConfig.ExecStartPost = lib.mkForce [
-          "${pkgs.writeShellScript
-          "wait-and-run-securityadmin"
-          ''
-            # wait for opensearch to start
-            sleep 100
-
-            ${pkgs.coreutils}/bin/env JAVA_HOME="${pkgs.jre_headless}" \
-              /var/lib/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
-                -ks /var/lib/opensearch/config/ssl-keystore.p12 \
-                -kspass '${keystore-password}' \
-                -ts /var/lib/opensearch/config/ssl-truststore.p12 \
-                -tspass '${truststore-password}' \
-                -cd /var/lib/opensearch/config/opensearch-security
-          ''}"
-        ];
-
-        services.opensearch = {
-          enable = true;
-          package = opensearch-fixed;
-          settings."plugins.security.disabled" = false;
-          settings."plugins.security.ssl.transport.keystore_filepath" = "ssl-keystore.p12";
-          settings."plugins.security.ssl.transport.keystore_type" = "PKCS12";
-          settings."plugins.security.ssl.transport.keystore_password" = keystore-password;
-          settings."plugins.security.ssl.transport.truststore_filepath" = "ssl-truststore.p12";
-          settings."plugins.security.ssl.transport.truststore_type" = "PKCS12";
-          settings."plugins.security.ssl.transport.truststore_password" = truststore-password;
-          settings."plugins.security.ssl.http.enabled" = true;
-          settings."plugins.security.ssl.http.keystore_filepath" = "ssl-keystore.p12";
-          settings."plugins.security.ssl.http.keystore_type" = "PKCS12";
-          settings."plugins.security.ssl.http.keystore_password" = keystore-password;
-          settings."plugins.security.ssl.http.truststore_filepath" = "ssl-truststore.p12";
-          settings."plugins.security.ssl.http.truststore_type" = "PKCS12";
-          settings."plugins.security.ssl.http.truststore_password" = truststore-password;
-          settings."plugins.security.authcz.admin_dn" = [ "CN=localhost" ];
-          # Configuration des options Java supplémentaires (uniquement pour le service "opensearch")
-          # Les machines virtuelles créées avec `nxc build -f vm` n'ont qu'un Mo de mémoire vive
-          # Par défaut, la JVM demande plus de mémoire que ça et ne peut pas démarrer
-          # Avec ces options, on limite son utilisation de la RAM
-          extraJavaOptions = [
-            "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-            "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-          ];
-        };
-
-        # Vector est système de gestion de logs
-        services.vector = {
-          enable = true;
-          journaldAccess = true;
-          settings = {
-            sources = {
-              "in" = {
-                type = "stdin";
-              };
-              "systemd" = {
-                type = "journald";
+      };
+      # Vector est système de gestion de logs
+      services.vector = {
+        enable = true;
+        journaldAccess = true;
+        settings = {
+          sources = {
+            "in" = {
+              type = "stdin";
+            };
+            "systemd" = {
+              type = "journald";
+            };
+          };
+          sinks = {
+            out = {
+              inputs = [ "in" ];
+              type = "console";
+              encoding = {
+                codec = "text";
               };
             };
-            sinks = {
-              out = {
-                inputs = [ "in" ];
-                type = "console";
-                encoding = {
-                  codec = "text";
-                };
+            opensearch = {
+              inputs = [ "systemd" ];
+              type = "elasticsearch";
+              endpoints = [ "https://127.0.0.1:9200" ];
+              auth = {
+                strategy = "basic";
+                user = "admin";
+                password = "admin";
               };
-              opensearch = {
-                inputs = [ "systemd" ];
-                type = "elasticsearch";
-                endpoints = ["https://127.0.0.1:9200"];
-                auth = {
-                  strategy = "basic";
-                  user = "admin";
-                  password = "admin";
-                };
-		tls.verify_certificate = false;
-              };
+              tls.verify_certificate = false;
             };
           };
         };
-
-        services.opensearch-dashboards.enable = true;
-
-        environment.variables = {
-          # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
-          # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
-          # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
-          # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
-          # On parse la configuration systemd pour récupérer le chemin du fichier.
-          VECTOR_CONFIG = lib.lists.last (
-            builtins.split " " config.systemd.services.vector.serviceConfig.ExecStart
-          );
-        };
       };
+
+      services.opensearch-dashboards.enable = true;
+
+      environment.variables = {
+        # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
+        # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
+        # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
+        # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
+        # On parse la configuration systemd pour récupérer le chemin du fichier.
+        VECTOR_CONFIG = lib.lists.last (
+          builtins.split " " config.systemd.services.vector.serviceConfig.ExecStart
+        );
+      };
+    };
+
+    # The ingest node is responsible for pre-processing documents before they are indexed ?
+
+    #  clusterName: "opensearch-cluster"
+
+    #  nodeGroup: "data"
+
+    #  masterService: "opensearch-cluster-master"
+
+    #  roles:
+    #    master: "false"
+    #    ingest: "true"
+    #    data: "true"
+    #    remote_cluster_client: "false"
+
+    #  replicas: 1
+
+    opensearchIngest = { pkgs, config, lib, ... }: {
+      environment.noXlibs = false;
+      environment.systemPackages = with pkgs; [ opensearch-fixed ]; 
+
+      services.opensearch = {
+        settings."node.master" = false;
+        settings."node.data" = false;
+        settings."node.ingest" = true;
+        enable = true;
+        package = opensearch-fixed;
+        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
+        # ajout du plugin de sécurité ?
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+        ];
+      };
+      # ...
+    };
+
+    # The data node stores the data and executes data-related operations such as search and aggregation ?
+
+    #  clusterName: "opensearch-cluster"
+
+    #  nodeGroup: "client"
+
+    #  masterService: "opensearch-cluster-master"
+
+    #  roles:
+    #    master: "false"
+    #    ingest: "false"
+    #    data: "false"
+    #    remote_cluster_client: "false"
+
+    #  replicas: 1
+
+    opensearchData = { pkgs, config, lib, ... }: {
+      environment.noXlibs = false;
+      environment.systemPackages = with pkgs; [ opensearch-fixed ];
+
+      services.opensearch = {
+        settings."node.master" = false;
+        settings."node.data" = true;
+        settings."node.ingest" = false;
+        enable = true;
+        package = opensearch-fixed;
+        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
+        # ajout du plugin de sécurité ?
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+        ];
+      };
+      # ...
+    };
   };
 
-  dockerPorts.opensearch = [ "5601:5601" "9200:9200" ];
+  dockerPorts.opensearchMaster = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
     opensearch.start()
