@@ -38,6 +38,12 @@ On crée ces fichiers principalement parce qu'ils sont demandés par le plugin
 il n'y a pas de traffic inter-nœuds, et on demande à OpenSearch Dashboards
 de ne pas vérifier les certificats.
 
+Pour lancer cette composition sur Grid5000, il faut utiliser le flavour g5k-nfs-store.
+Il est possible que l'ouverture des ports SSH prenne quelques dizaines de secondes.
+
+Le flavour g5k-ramdisk fonctionne aussi mais les nœuds ne sont pas accessibles via nxc
+connect ou ssh dans ce cas de figure.
+
 Pour interagir avec l'API REST en ligne de commande, on peut utiliser :
 
 ```bash
