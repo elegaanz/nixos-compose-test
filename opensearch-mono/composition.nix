@@ -63,7 +63,9 @@ in
           "wait-and-run-securityadmin"
           ''
             # wait for opensearch to start
-            sleep 100
+            while ! ${pkgs.nettools}/bin/netstat -tlnp | grep ':9200' ; do
+              sleep 1
+            done
 
             ${pkgs.coreutils}/bin/env JAVA_HOME="${pkgs.jre_headless}" \
               /var/lib/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
@@ -133,7 +135,7 @@ in
                   user = "admin";
                   password = "admin";
                 };
-		tls.verify_certificate = false;
+                tls.verify_certificate = false;
               };
             };
           };
@@ -162,7 +164,7 @@ in
     opensearch.wait_for_open_port(9200)
 
     opensearch.succeed(
-      "curl --fail localhost:9200"
+      "curl -k -u admin:admin --fail https://localhost:9200"
     )
 
     opensearch.wait_for_unit("vector.service")
@@ -172,7 +174,12 @@ in
     # The outer curl call just queries the content of the index and checks that it is in the expected
     # format with JQ
     opensearch.succeed(
-      "curl --fail http://localhost:9200/$(curl --fail http://localhost:9200/_stats | jq -r '.indices | keys[]' | grep vector | tail -n 1)/_search | jq '.hits.hits[0]._source'"
+      "curl -k -u admin:admin --fail https://localhost:9200/$(curl -k -u admin:admin --fail https://localhost:9200/_stats | jq -r '.indices | keys[]' | grep vector | tail -n 1)/_search | jq '.hits.hits[0]._source'"
+    )
+
+    opensearch.wait_for_unit("opensearch-dashboards.service")
+    opensearch.succeed(
+      "curl --fail http://localhost:5601/"
     )
   '';
 }
