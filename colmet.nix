@@ -45,6 +45,7 @@ let
   };
   cfg-collector = config.services.colmet-collector;
   cfg-node = config.services.colmet-node;
+  auth-file = pkgs.writeText "colmet-opensearch-auth" "admin:admin";
 in
 with lib;
 {
@@ -72,6 +73,7 @@ with lib;
         "--sample-period 3 " +
         "--elastic-host https://127.0.0.1:9200 " +
         "--elastic-index-prefix colmet_dahu_ " +
+        "--http-credentials ${auth-file} " +
         "--no-check-certificates";
     };
   };
