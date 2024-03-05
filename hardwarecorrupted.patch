@@ -1,0 +1,13 @@
+--- a/colmet/common/metrics/procstats.py
++++ b/colmet/common/metrics/procstats.py
+@@ -53,8 +53,8 @@
+                                 'meminfo_vmallocused'),
+         'meminfo_vmallocchunk': (UInt64(), 'kbytes', 'none',
+                                  'meminfo_vmallocchunk'),
+-        'meminfo_hardwarecorrupted': (UInt64(), 'kbytes', 'none',
+-                                      'meminfo_hardwarecorrupted'),
++        #'meminfo_hardwarecorrupted': (UInt64(), 'kbytes', 'none',
++        #                              'meminfo_hardwarecorrupted'),
+         'meminfo_anonhugepages': (UInt64(), 'kbytes', 'none',
+                                   'meminfo_anonhugepages'),
+         'meminfo_hugepages_total': (UInt64(), 'count', 'none',

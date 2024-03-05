@@ -32,6 +32,8 @@ let
     # Tests do not pass
     doCheck = false;
 
+    patches= [./hardwarecorrupted.patch];
+
     meta = with lib; {
       description = "Collecting metrics about process running in cpuset and in a distributed environnement";
       homepage = https://github.com/oar-team/colmet;
@@ -83,12 +85,4 @@ with lib;
       ExecStart = "${colmet}/bin/colmet-node -vvv --zeromq-uri tcp://127.0.0.1:5556";
     };
   };
-
-  config.boot.kernelPatches = [ {
-    name = "crashdump-config";
-    patch = null;
-    extraConfig = "MEMORY_FAILURE y";
-  }];
-
-
 }
