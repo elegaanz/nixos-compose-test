@@ -3,13 +3,13 @@
 let
   colmet = pkgs.python3Packages.buildPythonApplication rec {
     name = "colmet-${version}";
-    version = "0.5.4";
+    version = "0.6.10.dev0";
 
     src = pkgs.fetchFromGitHub {
       owner = "oar-team";
       repo = "colmet";
-      rev = "4cc29227fcaf5236d97dde74b9a52e04250a5b77";
-      sha256 = "1g2m6crdmlgk8c57qa1nss20128dnw9x58yg4r5wdc7zliicahqq";
+      rev = "a1c1c32e9f6014ddf8253842df27579b46b9a2fa";
+      sha256 = "sha256-wXsJtvml6PdG1V5hE7wmpdEcAvof6U1NPc1rFR15NHU=";
     };
 
     buildInputs = [ pkgs.powercap ];
@@ -66,13 +66,13 @@ with lib;
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" (mkIf config.services.opensearch.enable "opensearch.service") ];
     serviceConfig = {
-      ExecStart = "${colmet}/bin/colmet-collector -vvv \
-        --zeromq-bind-uri tcp://192.168.0.1:5556 \
-        --buffer-size 5000 \
-        --sample-period 3 \
-        --elastic-host https://127.0.0.1:9200 \
-        --elastic-index-prefix colmet_dahu_ 2>>/var/log/colmet_err.log >> /var/log/colmet.log \
-        --no-check-certificates";
+      ExecStart = "${colmet}/bin/colmet-collector -vvv " +
+        "--zeromq-bind-uri tcp://0.0.0.0:5556 " +
+        "--buffer-size 5000 " +
+        "--sample-period 3 " +
+        "--elastic-host https://127.0.0.1:9200 " +
+        "--elastic-index-prefix colmet_dahu_ " +
+        "--no-check-certificates";
     };
   };
 
