@@ -8,6 +8,23 @@ let
         chmod +x $out/plugins/opensearch-security/tools/*.sh
       '';
     });
+  cluster-name = "boris";
+  base-config = {
+    enable = true;
+    package = opensearch-fixed;
+
+    extraJavaOptions = [
+      "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+      "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+    ];
+
+    settings = {
+      "cluster.name" = cluster-name;
+      "network.bind_host" = "0.0.0.0";
+      "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
+      "cluster.initial_cluster_manager_nodes": [ "cluster_manager" ];
+    };
+  };
 in
 {
   # Useful link :
@@ -41,40 +58,12 @@ in
   #     do_not_fail_on_forbidden: false
 
 
-  # From : https://opensearch.org/blog/setup-multinode-cluster-kubernetes/
-
-  #  clusterName: "opensearch-cluster"
-  #  nodeGroup: "master"
-  #  masterService: "opensearch-cluster-master"
-  #  roles:
-  #    master: "true"
-  #    ingest: "false"
-  #    data: "false"
-  #    remote_cluster_client: "false"
-  #  replicas: 1
-
-  #  IP remplacer par le nom du role !
+  #  IP remplacée par le nom du rôle
   roles = {
-    opensearchMaster = { pkgs, config, lib, ... }: {
-      imports = [ ../opensearch-dashboards.nix ];
-
+    vector = { pkgs, ... }: {
+      environment.systemPackages = [ vector ];
       environment.noXlibs = false;
-      environment.systemPackages = with pkgs; [ opensearch-fixed vector jq ];
 
-      services.opensearch = {
-        settings."node.master" = true;
-        settings."node.data" = false;
-        settings."node.ingest" = false;
-        enable = true;
-        package = opensearch-fixed;
-        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
-        # ajout du plugin de sécurité ?
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
-      };
-      # Vector est système de gestion de logs
       services.vector = {
         enable = true;
         journaldAccess = true;
@@ -98,7 +87,7 @@ in
             opensearch = {
               inputs = [ "systemd" ];
               type = "elasticsearch";
-              endpoints = [ "https://127.0.0.1:9200" ];
+              endpoints = [ "https://master:9200" ];
               auth = {
                 strategy = "basic";
                 user = "admin";
@@ -109,8 +98,6 @@ in
           };
         };
       };
-
-      services.opensearch-dashboards.enable = true;
 
       environment.variables = {
         # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
@@ -124,80 +111,57 @@ in
       };
     };
 
-    # The ingest node is responsible for pre-processing documents before they are indexed ?
+    clusterManager = { pkgs, config, lib, ... }: {
+      imports = [ ../opensearch-dashboards.nix ];
 
-    #  clusterName: "opensearch-cluster"
+      environment.noXlibs = false;
+      environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
 
-    #  nodeGroup: "data"
+      # On ne connait pas les IP des nœuds à l'avance donc on
+      # génère ça dynamiquement
+      # TODO: vérifier que ça marche bien parce que
+      # - peut-être que le fichier existe pas au moment du boot et est copié depuis le store ensuite
+      # - peut-être qu'il existe mais qu'on a pas les droits pour le modifier
+      environment.activationScripts.seed-hosts = ''
+        CONF=/var/lib/opensearch/opensearch.yml
+        echo "discovery.seed_hosts:" >> $CONF
+        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 | awk '{ print "- \"" $0 "\"" }' >> $CONF
+      '';
 
-    #  masterService: "opensearch-cluster-master"
+      services.opensearch = base-config // {
+        settings."node.name" = "clusterManager";
+        settings."node.roles": [ "cluster_manager" ];
+      };
 
-    #  roles:
-    #    master: "false"
-    #    ingest: "true"
-    #    data: "true"
-    #    remote_cluster_client: "false"
+      services.opensearch-dashboards.enable = true;
+    };
 
-    #  replicas: 1
-
-    opensearchIngest = { pkgs, config, lib, ... }: {
+    # The ingest node is responsible for pre-processing documents before they are indexed
+    ingest = { pkgs, config, lib, ... }: {
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed ]; 
 
-      services.opensearch = {
-        settings."node.master" = false;
-        settings."node.data" = false;
-        settings."node.ingest" = true;
-        enable = true;
-        package = opensearch-fixed;
-        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
-        # ajout du plugin de sécurité ?
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
+      services.opensearch = base-config {
+        settings."node.name" = "ingest";
+        settings."node.roles" = [ "ingest" ];
+        settings."ingest.default_pipeline" = "my_pipeline";
       };
       # ...
     };
 
-    # The data node stores the data and executes data-related operations such as search and aggregation ?
-
-    #  clusterName: "opensearch-cluster"
-
-    #  nodeGroup: "client"
-
-    #  masterService: "opensearch-cluster-master"
-
-    #  roles:
-    #    master: "false"
-    #    ingest: "false"
-    #    data: "false"
-    #    remote_cluster_client: "false"
-
-    #  replicas: 1
-
-    opensearchData = { pkgs, config, lib, ... }: {
+    # The data node stores the data and executes data-related operations such as search and aggregation
+    data = { pkgs, config, lib, ... }: {
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed ];
 
-      services.opensearch = {
-        settings."node.master" = false;
-        settings."node.data" = true;
-        settings."node.ingest" = false;
-        enable = true;
-        package = opensearch-fixed;
-        settings."plugins.security.disabled" = true; # for the moment we disable the security plugin
-        # ajout du plugin de sécurité ?
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
+      services.opensearch = base-config // {
+        settings."node.name" = "data";
+        settings."node.roles" = [ "data" ];
       };
-      # ...
     };
   };
 
-  dockerPorts.opensearchMaster = [ "5601:5601" "9200:9200" ];
+  dockerPorts.clusterManager = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
     opensearch.start()
