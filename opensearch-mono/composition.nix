@@ -108,7 +108,6 @@ in
         services.opensearch-dashboards.enable = true;
         services.colmet-collector.enable = true;
         services.colmet-node.enable = true;
-
       };
   };
 
@@ -137,5 +136,13 @@ in
     opensearch.succeed(
       "curl --fail http://localhost:5601/"
     )
+
+    # Check that colmet runs…
+    opensearch.wait_for_unit("colmet-node.service")
+    opensearch.wait_for_unit("colmet-collector.service")
+    # That the collector has set up a ZeroMQ server…
+    opensearch.succeed("netstat -tlnp | grep :5556")
+    # And that the index was created in OpenSearch
+    opensearch.succeed("curl -ku admin:admin https://localhost:9200/_cat/indices | grep colmet")
   '';
 }
