@@ -32,7 +32,7 @@ let
     # Tests do not pass
     doCheck = false;
 
-    patches= [./hardwarecorrupted.patch];
+    patches= [ ./colmet-hwm-constants.patch ];
 
     meta = with lib; {
       description = "Collecting metrics about process running in cpuset and in a distributed environnement";
