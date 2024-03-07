@@ -1,38 +1,64 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
   keystore-password = "usAe#%EX92R7UHSYwJ";
   truststore-password = "*!YWptTiu3&okU%E9a";
-  opensearch-fixed = pkgs.opensearch.overrideAttrs
-    (final: previous: {
-      installPhase = previous.installPhase + ''
-        chmod +x $out/plugins/opensearch-security/tools/*.sh
-      '';
-    });
+  opensearch-fixed = pkgs.opensearch.overrideAttrs (final: previous: {
+    installPhase = previous.installPhase + ''
+      chmod +x $out/plugins/opensearch-security/tools/*.sh
+    '';
+  });
   cluster-name = "boris";
-  base-config = {
-    # enable = true;
-    # package = opensearch-fixed;
+  service-config = lib.recursiveUpdate {
+    enable = true;
+    package = opensearch-fixed;
 
-    # extraJavaOptions = [
-    #   "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-    #   "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-    # ];
+    extraJavaOptions = [
+      "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+      "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+    ];
 
     settings = { # doesn't works
-      # "cluster.name" = cluster-name;
-      # "network.bind_host" = "0.0.0.0";
-      # "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
-      # # "cluster.initial_cluster_manager_nodes" = [ "clusterManager" ];
-      # cluster."initial_master_nodes" = [ "clusterManager" ];
+      "cluster.name" = cluster-name;
+      "network.bind_host" = "0.0.0.0";
+      "network.host" = "0.0.0.0";
+      "plugins.security.disabled" =
+        true; # TODO: for the moment we disable the security plugin
+      "discovery.type" = "zen";
     };
   };
-in
-{
+  # On ne connait pas les IP des nœuds à l'avance donc on
+  # génère ça dynamiquement
+  # TODO: vérifier que ça marche bien parce que
+  # - peut-être que le fichier existe pas au moment du boot et est copié depuis le store ensuite
+  # - peut-être qu'il existe mais qu'on a pas les droits pour le modifier
+  populate-hosts-script = [
+    "${
+      pkgs.writeShellScriptBin "configure-opensearch" ''
+        CONF=/var/lib/opensearch/config/opensearch.yml
+
+        while [ ! -f $CONF ]; do
+          sleep 1
+        done
+
+        chmod +w $CONF
+
+        # All nodes must have discovery.seed_hosts set to the IP of manager nodes
+        echo "discovery.seed_hosts:" >> $CONF
+        ${pkgs.jq}/bin/jq '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+
+        # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
+        if hostname | grep manager; then
+          echo "cluster.initial_cluster_manager_nodes:" >> $CONF
+          ${pkgs.jq}/bin/jq '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+        fi
+      ''
+    }/bin/configure-opensearch"
+  ];
+in {
   # Useful link :
   # https://opensearch.org/docs/latest/tuning-your-cluster/
   # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/cluster-settings/
   # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/index/#dynamic-settings
-
 
   # From : https://opensearch.org/docs/latest/security/multi-tenancy/multi-tenancy-config/
   # The opensearch_dashboards.yml file includes additional settings:
@@ -58,7 +84,6 @@ in
   #       index: '.kibana'
   #     do_not_fail_on_forbidden: false
 
-
   #  IP remplacée par le nom du rôle
   roles = {
     vector = { lib, pkgs, config, ... }: {
@@ -70,20 +95,14 @@ in
         journaldAccess = true;
         settings = {
           sources = {
-            "in" = {
-              type = "stdin";
-            };
-            "systemd" = {
-              type = "journald";
-            };
+            "in" = { type = "stdin"; };
+            "systemd" = { type = "journald"; };
           };
           sinks = {
             out = {
               inputs = [ "in" ];
               type = "console";
-              encoding = {
-                codec = "text";
-              };
+              encoding = { codec = "text"; };
             };
             opensearch = {
               inputs = [ "systemd" ];
@@ -106,52 +125,24 @@ in
         # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
         # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
         # On parse la configuration systemd pour récupérer le chemin du fichier.
-        VECTOR_CONFIG = lib.lists.last (
-          builtins.split " " config.systemd.services.vector.serviceConfig.ExecStart
-        );
+        VECTOR_CONFIG = lib.lists.last (builtins.split " "
+          config.systemd.services.vector.serviceConfig.ExecStart);
       };
     };
 
-    clusterManager = { pkgs, config, lib, ... }: {
+    manager = { pkgs, config, lib, ... }: {
       imports = [ ../opensearch-dashboards.nix ];
+
+      boot.kernel.sysctl."vm.max_map_count" = 262144;
 
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
 
-      # On ne connait pas les IP des nœuds à l'avance donc on
-      # génère ça dynamiquement
-      # TODO: vérifier que ça marche bien parce que
-      # - peut-être que le fichier existe pas au moment du boot et est copié depuis le store ensuite
-      # - peut-être qu'il existe mais qu'on a pas les droits pour le modifier
-      systemd.services.opensearch.serviceConfig.ExecStartPre = let
-      script = ''
-        CONF=/var/lib/opensearch/config/opensearch.yml
-        while [ ! -f $CONF ]; do sleep 1; done
-        chmod +w $CONF
-        echo "discovery.seed_hosts:" >> $CONF
-        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
-      '';
-      in
-        [
-          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
-        ];
-
-      services.opensearch = base-config // {
-        enable = true;
-        package = opensearch-fixed;
-        settings."node.name" = "clusterManager";
-        # settings."node.master" = true;
+      systemd.services.opensearch.serviceConfig.ExecStartPre =
+        populate-hosts-script;
+      services.opensearch = service-config {
+        settings."node.name" = config.networking.hostName;
         settings."node.roles" = [ "cluster_manager" ];
-        # settings."cluster.initial_cluster_manager_nodes" = ["opensearch-cluster_manager"];
-        settings."discovery.type" = "zen";
-        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
-        settings."cluster.name" = cluster-name;
-        settings."network.bind_host" = "0.0.0.0";
-        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
       };
 
       services.opensearch-dashboards.enable = true;
@@ -159,80 +150,34 @@ in
 
     # The ingest node is responsible for pre-processing documents before they are indexed
     ingest = { pkgs, config, lib, ... }: {
+      boot.kernel.sysctl."vm.max_map_count" = 262144;
+
       environment.noXlibs = false;
-      environment.systemPackages = with pkgs; [ opensearch-fixed ]; 
+      environment.systemPackages = with pkgs; [ opensearch-fixed ];
 
+      systemd.services.opensearch.serviceConfig.ExecStartPre =
+        populate-hosts-script;
 
-      systemd.services.opensearch.serviceConfig.ExecStartPre = let
-      script = ''
-        CONF=/var/lib/opensearch/config/opensearch.yml
-        while [ ! -f $CONF ]; do sleep 1; done
-        chmod +w $CONF
-        echo "discovery.seed_hosts:" >> $CONF
-        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
-      '';
-      in
-        [
-          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
-        ];
-
-      services.opensearch = base-config // {
-        enable = true;
-        package = opensearch-fixed;
-        settings."node.name" = "ingest";
+      services.opensearch = service-config {
+        settings."node.name" = config.networking.hostName;
         settings."node.roles" = [ "ingest" ];
-        # settings."node.master" = false;
-        settings."ingest.default_pipeline" = "my_pipeline";
-        settings."discovery.type" = "zen";
-        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
-        settings."cluster.name" = cluster-name;
-        settings."network.bind_host" = "0.0.0.0";
-        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
       };
-
     };
 
     # The data node stores the data and executes data-related operations such as search and aggregation
     data = { pkgs, config, lib, ... }: {
+      boot.kernel.sysctl."vm.max_map_count" = 262144;
+
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed ];
 
-      systemd.services.opensearch.serviceConfig.ExecStartPre = let
-      script = ''
-        CONF=/var/lib/opensearch/config/opensearch.yml
-        while [ ! -f $CONF ]; do sleep 1; done
-        chmod +w $CONF
-        echo "discovery.seed_hosts:" >> $CONF
-        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
-      '';
-      in
-        [
-          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
-        ];
+      systemd.services.opensearch.serviceConfig.ExecStartPre =
+        populate-hosts-script;
 
-      services.opensearch = base-config // {
-        enable = true;
-        package = opensearch-fixed;
-        settings."node.name" = "data";
+      services.opensearch = service-config {
+        settings."node.name" = config.networking.hostName;
         settings."node.roles" = [ "data" ];
-        # settings."node.master" = false;
-        settings."discovery.type" = "zen";
-        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
-        settings."cluster.name" = cluster-name;
-        settings."network.bind_host" = "0.0.0.0";
-        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
-        extraJavaOptions = [
-          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-        ];
       };
-
-      
-
     };
   };
 
