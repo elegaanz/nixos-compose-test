@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, enable-colmet ? true, enable-vector ? true, ... }:
 let
   keystore-password = "usAe#%EX92R7UHSYwJ";
   truststore-password = "*!YWptTiu3&okU%E9a";
@@ -13,10 +13,10 @@ in
   roles = {
     opensearch = { pkgs, config, lib, ... }:
       {
-        imports = [ ../opensearch-dashboards.nix ];
+        imports = [ ../opensearch-dashboards.nix ../colmet.nix ];
 
         environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch-fixed vector jq ];
+        environment.systemPackages = with pkgs; [ opensearch-fixed jq ] ++ (if enable-vector then [ vector ] else []);
 
         systemd.services.opensearch.serviceConfig.ExecStartPre = [
           "${pkgs.writeShellScript
@@ -105,9 +105,10 @@ in
           ];
         };
 
+
         # Vector est système de gestion de logs
         services.vector = {
-          enable = true;
+          enable = enable-vector;
           journaldAccess = true;
           settings = {
             sources = {
@@ -140,10 +141,11 @@ in
             };
           };
         };
-
         services.opensearch-dashboards.enable = true;
+        services.colmet-collector.enable = enable-colmet;
+        services.colmet-node.enable = enable-colmet;
 
-        environment.variables = {
+        environment.variables = lib.mkIf enable-vector {
           # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
           # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
           # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
@@ -159,6 +161,7 @@ in
   dockerPorts.opensearch = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
+    import time
     opensearch.start()
     opensearch.wait_for_unit("opensearch.service")
     opensearch.wait_for_open_port(9200)
@@ -166,6 +169,15 @@ in
     opensearch.succeed(
       "curl -k -u admin:admin --fail https://localhost:9200"
     )
+
+    opensearch.wait_for_unit("opensearch-dashboards.service")
+    opensearch.wait_for_open_port(5601)
+    # When starting, opensearch-dashboards binds the port but need some time to start
+    time.sleep(10)
+    opensearch.succeed(
+      "curl --fail http://localhost:5601/"
+    )
+  '' + (if enable-vector then ''
 
     opensearch.wait_for_unit("vector.service")
 
@@ -176,10 +188,13 @@ in
     opensearch.succeed(
       "curl -k -u admin:admin --fail https://localhost:9200/$(curl -k -u admin:admin --fail https://localhost:9200/_stats | jq -r '.indices | keys[]' | grep vector | tail -n 1)/_search | jq '.hits.hits[0]._source'"
     )
-
-    opensearch.wait_for_unit("opensearch-dashboards.service")
-    opensearch.succeed(
-      "curl --fail http://localhost:5601/"
-    )
-  '';
+  '' else "") + (if enable-colmet then ''
+    # Check that colmet runs…
+    opensearch.wait_for_unit("colmet-node.service")
+    opensearch.wait_for_unit("colmet-collector.service")
+    # That the collector has set up a ZeroMQ server…
+    opensearch.succeed("netstat -tlnp | grep :5556")
+    # And that the index was created in OpenSearch
+    opensearch.succeed("curl -ku admin:admin https://localhost:9200/_cat/indices | grep colmet")
+  '' else "");
 }
