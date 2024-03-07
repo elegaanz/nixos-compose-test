@@ -16,7 +16,7 @@ in
         imports = [ ../opensearch-dashboards.nix ../colmet.nix ];
 
         environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
+        environment.systemPackages = with pkgs; [ opensearch-fixed vector jq ];
 
         systemd.services.opensearch.serviceConfig.ExecStartPre = [
           "${pkgs.writeShellScript
@@ -105,9 +105,56 @@ in
           ];
         };
 
+
+        # Vector est système de gestion de logs
+        services.vector = {
+          enable = true;
+          journaldAccess = true;
+          settings = {
+            sources = {
+              "in" = {
+                type = "stdin";
+              };
+              "systemd" = {
+                type = "journald";
+              };
+            };
+            sinks = {
+              out = {
+                inputs = [ "in" ];
+                type = "console";
+                encoding = {
+                  codec = "text";
+                };
+              };
+              opensearch = {
+                inputs = [ "systemd" ];
+                type = "elasticsearch";
+                endpoints = ["https://127.0.0.1:9200"];
+                auth = {
+                  strategy = "basic";
+                  user = "admin";
+                  password = "admin";
+                };
+                tls.verify_certificate = false;
+              };
+            };
+          };
+        };
         services.opensearch-dashboards.enable = true;
         services.colmet-collector.enable = true;
         services.colmet-node.enable = true;
+
+        environment.variables = {
+          # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
+          # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
+          # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
+          # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
+          # On parse la configuration systemd pour récupérer le chemin du fichier.
+          VECTOR_CONFIG = lib.lists.last (
+            builtins.split " " config.systemd.services.vector.serviceConfig.ExecStart
+          );
+        };
       };
   };
 
