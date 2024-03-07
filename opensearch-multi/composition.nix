@@ -10,19 +10,20 @@ let
     });
   cluster-name = "boris";
   base-config = {
-    enable = true;
-    package = opensearch-fixed;
+    # enable = true;
+    # package = opensearch-fixed;
 
-    extraJavaOptions = [
-      "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-      "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
-    ];
+    # extraJavaOptions = [
+    #   "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+    #   "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+    # ];
 
-    settings = {
-      "cluster.name" = cluster-name;
-      "network.bind_host" = "0.0.0.0";
-      "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
-      "cluster.initial_cluster_manager_nodes": [ "cluster_manager" ];
+    settings = { # doesn't works
+      # "cluster.name" = cluster-name;
+      # "network.bind_host" = "0.0.0.0";
+      # "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
+      # # "cluster.initial_cluster_manager_nodes" = [ "clusterManager" ];
+      # cluster."initial_master_nodes" = [ "clusterManager" ];
     };
   };
 in
@@ -60,8 +61,8 @@ in
 
   #  IP remplacée par le nom du rôle
   roles = {
-    vector = { pkgs, ... }: {
-      environment.systemPackages = [ vector ];
+    vector = { lib, pkgs, config, ... }: {
+      environment.systemPackages = [ pkgs.vector ];
       environment.noXlibs = false;
 
       services.vector = {
@@ -87,7 +88,7 @@ in
             opensearch = {
               inputs = [ "systemd" ];
               type = "elasticsearch";
-              endpoints = [ "https://master:9200" ];
+              endpoints = [ "https://clusterManager:9200" ];
               auth = {
                 strategy = "basic";
                 user = "admin";
@@ -122,15 +123,35 @@ in
       # TODO: vérifier que ça marche bien parce que
       # - peut-être que le fichier existe pas au moment du boot et est copié depuis le store ensuite
       # - peut-être qu'il existe mais qu'on a pas les droits pour le modifier
-      environment.activationScripts.seed-hosts = ''
-        CONF=/var/lib/opensearch/opensearch.yml
+      systemd.services.opensearch.serviceConfig.ExecStartPre = let
+      script = ''
+        CONF=/var/lib/opensearch/config/opensearch.yml
+        while [ ! -f $CONF ]; do sleep 1; done
+        chmod +w $CONF
         echo "discovery.seed_hosts:" >> $CONF
-        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 | awk '{ print "- \"" $0 "\"" }' >> $CONF
+        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
       '';
+      in
+        [
+          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
+        ];
 
       services.opensearch = base-config // {
+        enable = true;
+        package = opensearch-fixed;
         settings."node.name" = "clusterManager";
-        settings."node.roles": [ "cluster_manager" ];
+        # settings."node.master" = true;
+        settings."node.roles" = [ "cluster_manager" ];
+        # settings."cluster.initial_cluster_manager_nodes" = ["opensearch-cluster_manager"];
+        settings."discovery.type" = "zen";
+        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
+        settings."cluster.name" = cluster-name;
+        settings."network.bind_host" = "0.0.0.0";
+        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+        ];
       };
 
       services.opensearch-dashboards.enable = true;
@@ -141,12 +162,38 @@ in
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed ]; 
 
-      services.opensearch = base-config {
+
+      systemd.services.opensearch.serviceConfig.ExecStartPre = let
+      script = ''
+        CONF=/var/lib/opensearch/config/opensearch.yml
+        while [ ! -f $CONF ]; do sleep 1; done
+        chmod +w $CONF
+        echo "discovery.seed_hosts:" >> $CONF
+        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
+      '';
+      in
+        [
+          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
+        ];
+
+      services.opensearch = base-config // {
+        enable = true;
+        package = opensearch-fixed;
         settings."node.name" = "ingest";
         settings."node.roles" = [ "ingest" ];
+        # settings."node.master" = false;
         settings."ingest.default_pipeline" = "my_pipeline";
+        settings."discovery.type" = "zen";
+        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
+        settings."cluster.name" = cluster-name;
+        settings."network.bind_host" = "0.0.0.0";
+        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+        ];
       };
-      # ...
+
     };
 
     # The data node stores the data and executes data-related operations such as search and aggregation
@@ -154,10 +201,38 @@ in
       environment.noXlibs = false;
       environment.systemPackages = with pkgs; [ opensearch-fixed ];
 
+      systemd.services.opensearch.serviceConfig.ExecStartPre = let
+      script = ''
+        CONF=/var/lib/opensearch/config/opensearch.yml
+        while [ ! -f $CONF ]; do sleep 1; done
+        chmod +w $CONF
+        echo "discovery.seed_hosts:" >> $CONF
+        cat /etc/hosts | grep -E 'ingest|data' | cut -f 1 -d ' ' | ${pkgs.gawk}/bin/awk '{ print "- \"" $0 "\"" }' >> $CONF
+      '';
+      in
+        [
+          "${pkgs.writeShellScriptBin "configure-opensearch" script}/bin/configure-opensearch"
+        ];
+
       services.opensearch = base-config // {
+        enable = true;
+        package = opensearch-fixed;
         settings."node.name" = "data";
         settings."node.roles" = [ "data" ];
+        # settings."node.master" = false;
+        settings."discovery.type" = "zen";
+        settings."cluster.initial_master_nodes" = [ "clusterManager" ];
+        settings."cluster.name" = cluster-name;
+        settings."network.bind_host" = "0.0.0.0";
+        settings."plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
+        extraJavaOptions = [
+          "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
+          "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+        ];
       };
+
+      
+
     };
   };
 
