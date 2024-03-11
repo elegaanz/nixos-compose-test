@@ -8,7 +8,7 @@ let
     '';
   });
   cluster-name = "boris";
-  service-config = lib.recursiveUpdate {
+  service-config = hostname: config: lib.recursiveUpdate {
     enable = true;
     package = opensearch-fixed;
 
@@ -17,15 +17,16 @@ let
       "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
     ];
 
-    settings = { # doesn't works
+    settings = {
+      "node.name" = hostname;
       "cluster.name" = cluster-name;
-      "network.bind_host" = "0.0.0.0";
-      "network.host" = "0.0.0.0";
+      "network.bind_host" = hostname;
+      "network.host" = hostname;
       "plugins.security.disabled" =
         true; # TODO: for the moment we disable the security plugin
       "discovery.type" = "zen";
     };
-  };
+  } config;
   # On ne connait pas les IP des nœuds à l'avance donc on
   # génère ça dynamiquement
   # TODO: vérifier que ça marche bien parce que
@@ -42,14 +43,23 @@ let
 
         chmod +w $CONF
 
+        # Depending on the flavour, the /etc/nxc/deployment.json file
+        # does not contain the same information
+        # We build a temporary file that contains the hostnames of all deployed nodes
+        # regardless of the current flavour
+        # We first see if we are in Docker
+        if jq -e '.'; then
+          echo DOCKER
+        fi
+
         # All nodes must have discovery.seed_hosts set to the IP of manager nodes
         echo "discovery.seed_hosts:" >> $CONF
-        ${pkgs.jq}/bin/jq '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+        ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
 
         # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
         if hostname | grep manager; then
           echo "cluster.initial_cluster_manager_nodes:" >> $CONF
-          ${pkgs.jq}/bin/jq '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+          ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
         fi
       ''
     }/bin/configure-opensearch"
@@ -140,8 +150,7 @@ in {
 
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
-      services.opensearch = service-config {
-        settings."node.name" = config.networking.hostName;
+      services.opensearch = service-config config.networking.hostName {
         settings."node.roles" = [ "cluster_manager" ];
       };
 
@@ -158,8 +167,7 @@ in {
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
 
-      services.opensearch = service-config {
-        settings."node.name" = config.networking.hostName;
+      services.opensearch = service-config config.networking.hostName {
         settings."node.roles" = [ "ingest" ];
       };
     };
@@ -174,8 +182,7 @@ in {
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
 
-      services.opensearch = service-config {
-        settings."node.name" = config.networking.hostName;
+      services.opensearch = service-config config.networking.hostName {
         settings."node.roles" = [ "data" ];
       };
     };
