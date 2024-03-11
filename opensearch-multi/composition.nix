@@ -48,19 +48,29 @@ let
         # We build a temporary file that contains the hostnames of all deployed nodes
         # regardless of the current flavour
         # We first see if we are in Docker
-        if jq -e '.'; then
-          echo DOCKER
-        fi
-
-        # All nodes must have discovery.seed_hosts set to the IP of manager nodes
-        echo "discovery.seed_hosts:" >> $CONF
-        ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
-
-        # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
-        if hostname | grep manager; then
-          echo "cluster.initial_cluster_manager_nodes:" >> $CONF
+        if jq -e '.ssh_key.pub' /etc/nxc/deployment.json > /dev/null 2>&1; then
+          # All nodes must have discovery.seed_hosts set to the IP of manager nodes
+          echo "discovery.seed_hosts:" >> $CONF
           ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+
+          # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
+          if hostname | grep manager; then
+            echo "cluster.initial_cluster_manager_nodes:" >> $CONF
+            ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
+          fi
+        else
+          # All nodes must have discovery.seed_hosts set to the IP of manager nodes
+          echo "discovery.seed_hosts:" >> $CONF
+          ${pkgs.jq}/bin/jq -r '.deployment | to_entries[] | select(.value.role == "manager") | "- \(.value.host)"' fichier.json >> $CONF
+
+          # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
+          if hostname | grep manager; then
+            echo "cluster.initial_cluster_manager_nodes:" >> $CONF
+            ${pkgs.jq}/bin/jq -r '.deployment | to_entries[] | select(.value.role == "manager") | "- \(.value.host)"' fichier.json >> $CONF
+          fi
         fi
+
+        
       ''
     }/bin/configure-opensearch"
   ];
