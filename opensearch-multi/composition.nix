@@ -26,6 +26,19 @@ let
       "discovery.type" = "zen";
     };
   };
+  opensearch-node = role: {
+    imports = [ ../opensearch-dashboards.nix ];
+
+    boot.kernel.sysctl."vm.max_map_count" = 262144;
+
+    environment.noXlibs = false;
+    environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
+
+    systemd.services.opensearch.serviceConfig.ExecStartPre = populate-hosts-script;
+    services.opensearch = service-config {
+      settings."node.roles" = [ role ];
+    };
+  };
   # On ne connait pas les IP des nœuds à l'avance donc on
   # génère ça dynamiquement
   populate-hosts-script = [
@@ -74,37 +87,17 @@ let
     }/bin/configure-opensearch"
   ];
 in {
-  # Useful link :
-  # https://opensearch.org/docs/latest/tuning-your-cluster/
-  # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/cluster-settings/
-  # https://opensearch.org/docs/latest/install-and-configure/configuring-opensearch/index/#dynamic-settings
-
-  # From : https://opensearch.org/docs/latest/security/multi-tenancy/multi-tenancy-config/
-  # The opensearch_dashboards.yml file includes additional settings:
-
-  # opensearch.username: kibanaserver
-  # opensearch.password: kibanaserver
-  # opensearch.requestHeadersAllowlist: ["securitytenant","Authorization"]
-  # opensearch_security.multitenancy.enabled: true
-  # opensearch_security.multitenancy.tenants.enable_global: true
-  # opensearch_security.multitenancy.tenants.enable_private: true
-  # opensearch_security.multitenancy.tenants.preferred: ["Private", "Global"]
-  # opensearch_security.multitenancy.enable_filter: false
-
-  # Multi-tenancy is enabled in OpenSearch Dashboards by default. If you need to disable or change settings related to multi-tenancy, see the kibana settings in config/opensearch-security/config.yml, as shown in the following example:
-
-  # config:
-  #   dynamic:
-  #     kibana:
-  #       multitenancy_enabled: true
-  #       private_tenant_enabled: true
-  #       default_tenant: global tenant
-  #       server_username: kibanaserver
-  #       index: '.kibana'
-  #     do_not_fail_on_forbidden: false
-
-  #  IP remplacée par le nom du rôle
   roles = {
+    manager = { pkgs, config, lib, ... }: lib.recursiveUpdate (opensearch-node "cluster_manager") {
+      services.opensearch-dashboards.enable = true;
+    };
+
+    # The ingest node is responsible for pre-processing documents before they are indexed
+    ingest = { pkgs, config, lib, ... }: opensearch-node "ingest";
+
+    # The data node stores the data and executes data-related operations such as search and aggregation
+    data = { pkgs, config, lib, ... }: opensearch-node "data";
+
     vector = { lib, pkgs, config, ... }: {
       environment.systemPackages = [ pkgs.vector ];
       environment.noXlibs = false;
@@ -146,53 +139,6 @@ in {
         # On parse la configuration systemd pour récupérer le chemin du fichier.
         VECTOR_CONFIG = lib.lists.last (builtins.split " "
           config.systemd.services.vector.serviceConfig.ExecStart);
-      };
-    };
-
-    manager = { pkgs, config, lib, ... }: {
-      imports = [ ../opensearch-dashboards.nix ];
-
-      boot.kernel.sysctl."vm.max_map_count" = 262144;
-
-      environment.noXlibs = false;
-      environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
-
-      systemd.services.opensearch.serviceConfig.ExecStartPre =
-        populate-hosts-script;
-      services.opensearch = service-config {
-        settings."node.roles" = [ "cluster_manager" ];
-      };
-
-      services.opensearch-dashboards.enable = true;
-    };
-
-    # The ingest node is responsible for pre-processing documents before they are indexed
-    ingest = { pkgs, config, lib, ... }: {
-      boot.kernel.sysctl."vm.max_map_count" = 262144;
-
-      environment.noXlibs = false;
-      environment.systemPackages = with pkgs; [ opensearch-fixed ];
-
-      systemd.services.opensearch.serviceConfig.ExecStartPre =
-        populate-hosts-script;
-
-      services.opensearch = service-config {
-        settings."node.roles" = [ "ingest" ];
-      };
-    };
-
-    # The data node stores the data and executes data-related operations such as search and aggregation
-    data = { pkgs, config, lib, ... }: {
-      boot.kernel.sysctl."vm.max_map_count" = 262144;
-
-      environment.noXlibs = false;
-      environment.systemPackages = with pkgs; [ opensearch-fixed ];
-
-      systemd.services.opensearch.serviceConfig.ExecStartPre =
-        populate-hosts-script;
-
-      services.opensearch = service-config {
-        settings."node.roles" = [ "data" ];
       };
     };
   };
