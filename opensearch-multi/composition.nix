@@ -57,28 +57,23 @@ let
         # We build a temporary file that contains the hostnames of all deployed nodes
         # regardless of the current flavour
         # We first see if we are in a VM or on Grid5000
+        declare -a JQ_PIPELINE
         if grep "ssh_key.pub" /etc/nxc/deployment.json; then
-          echo "# Auto-generated VM/G5K config" >> $CONF
-          # All nodes must have discovery.seed_hosts set to the IP of manager nodes
-          echo "discovery.seed_hosts:" >> $CONF
-          ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
-
-          # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
-          if hostname | grep manager; then
-            echo "cluster.initial_cluster_manager_nodes:" >> $CONF
-            ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
-          fi
+          JQ_PIPELINE=('"- " + (.deployment | map(.host) | .[])')
         else
           # Same as above, but in this case we are in Docker
           # and the deployment.json format is not exactly the same
-          echo "# Auto-generated Docker config" >> $CONF
-          echo "discovery.seed_hosts:" >> $CONF
-          ${pkgs.jq}/bin/jq -r '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json | grep manager >> $CONF
+          JQ_PIPELINE=('"- " + (.deployment | keys | .[])')
+        fi
 
-          if hostname | grep manager; then
-            echo "cluster.initial_cluster_manager_nodes:" >> $CONF
-            ${pkgs.jq}/bin/jq -r '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json | grep manager >> $CONF
-          fi
+        # All nodes must have discovery.seed_hosts set to the IP of manager nodes
+        echo "discovery.seed_hosts:" >> $CONF
+        ${pkgs.jq}/bin/jq "''${JQ_PIPELINE[@]}" /etc/nxc/deployment.json -r | grep manager >> $CONF
+
+        # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
+        if hostname | grep manager; then
+          echo "cluster.initial_cluster_manager_nodes:" >> $CONF
+          ${pkgs.jq}/bin/jq "''${JQ_PIPELINE[@]}" /etc/nxc/deployment.json -r | grep manager >> $CONF
         fi
 
         # Replace localhost with the actual hostname
