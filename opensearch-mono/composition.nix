@@ -142,6 +142,27 @@ in
           };
         };
         services.opensearch-dashboards.enable = true;
+        systemd.services.opensearch-dashboards.serviceConfig.ExecStartPost = [
+          "${pkgs.writeShellScript
+          "configure-graphs"
+          ''
+           ${pkgs.curl}/bin/curl -X POST 
+                 -H "Content-Type: application/json"
+                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/index_pattern"
+                 -d "@${./index-pattern.json}"
+
+           ${pkgs.curl}/bin/curl -X POST 
+                 -H "Content-Type: application/json"
+                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/visualization"
+                 -d "@${./visu.json}"
+
+           ${pkgs.curl}/bin/curl -X POST 
+                 -H "Content-Type: application/json"
+                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/dashboard"
+                 -d "@${./dashboard.json}"
+          ''}"
+        ];
+
         services.colmet-collector.enable = enable-colmet;
         services.colmet-node.enable = enable-colmet;
 
