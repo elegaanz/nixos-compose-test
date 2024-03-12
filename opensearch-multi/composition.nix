@@ -8,7 +8,7 @@ let
     '';
   });
   cluster-name = "boris";
-  service-config = hostname: config: lib.recursiveUpdate {
+  service-config = lib.recursiveUpdate {
     enable = true;
     package = opensearch-fixed;
 
@@ -18,20 +18,16 @@ let
     ];
 
     settings = {
-      "node.name" = hostname;
+      "node.name" = "localhost";
       "cluster.name" = cluster-name;
-      "network.bind_host" = hostname;
-      "network.host" = hostname;
-      "plugins.security.disabled" =
-        true; # TODO: for the moment we disable the security plugin
+      "network.bind_host" = "0.0.0.0";
+      "network.host" = "localhost";
+      "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
       "discovery.type" = "zen";
     };
-  } config;
+  };
   # On ne connait pas les IP des nœuds à l'avance donc on
   # génère ça dynamiquement
-  # TODO: vérifier que ça marche bien parce que
-  # - peut-être que le fichier existe pas au moment du boot et est copié depuis le store ensuite
-  # - peut-être qu'il existe mais qu'on a pas les droits pour le modifier
   populate-hosts-script = [
     "${
       pkgs.writeShellScriptBin "configure-opensearch" ''
@@ -47,8 +43,9 @@ let
         # does not contain the same information
         # We build a temporary file that contains the hostnames of all deployed nodes
         # regardless of the current flavour
-        # We first see if we are in Docker
-        if jq -e '.ssh_key.pub' /etc/nxc/deployment.json > /dev/null 2>&1; then
+        # We first see if we are in a VM or on Grid5000
+        if grep "ssh_key.pub" /etc/nxc/deployment.json; then
+          echo "# Auto-generated VM/G5K config" >> $CONF
           # All nodes must have discovery.seed_hosts set to the IP of manager nodes
           echo "discovery.seed_hosts:" >> $CONF
           ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
@@ -59,18 +56,20 @@ let
             ${pkgs.jq}/bin/jq '"- " + (.deployment | map(.host) | .[])' /etc/nxc/deployment.json -r | grep manager >> $CONF
           fi
         else
-          # All nodes must have discovery.seed_hosts set to the IP of manager nodes
+          # Same as above, but in this case we are in Docker
+          # and the deployment.json format is not exactly the same
+          echo "# Auto-generated Docker config" >> $CONF
           echo "discovery.seed_hosts:" >> $CONF
-          ${pkgs.jq}/bin/jq -r '.deployment | to_entries[] | select(.value.role == "manager") | "- \(.value.host)"' fichier.json >> $CONF
+          ${pkgs.jq}/bin/jq -r '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json | grep manager >> $CONF
 
-          # On manager nodes, they should also be listed in cluster.initial_cluster_manager_nodes
           if hostname | grep manager; then
             echo "cluster.initial_cluster_manager_nodes:" >> $CONF
-            ${pkgs.jq}/bin/jq -r '.deployment | to_entries[] | select(.value.role == "manager") | "- \(.value.host)"' fichier.json >> $CONF
+            ${pkgs.jq}/bin/jq -r '"- " + (.deployment | keys | .[])' /etc/nxc/deployment.json | grep manager >> $CONF
           fi
         fi
 
-        
+        # Replace localhost with the actual hostname
+        sed -i "s/localhost/$(hostname)/" $CONF
       ''
     }/bin/configure-opensearch"
   ];
@@ -160,7 +159,7 @@ in {
 
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
-      services.opensearch = service-config config.networking.hostName {
+      services.opensearch = service-config {
         settings."node.roles" = [ "cluster_manager" ];
       };
 
@@ -177,7 +176,7 @@ in {
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
 
-      services.opensearch = service-config config.networking.hostName {
+      services.opensearch = service-config {
         settings."node.roles" = [ "ingest" ];
       };
     };
@@ -192,13 +191,13 @@ in {
       systemd.services.opensearch.serviceConfig.ExecStartPre =
         populate-hosts-script;
 
-      services.opensearch = service-config config.networking.hostName {
+      services.opensearch = service-config {
         settings."node.roles" = [ "data" ];
       };
     };
   };
 
-  dockerPorts.clusterManager = [ "5601:5601" "9200:9200" ];
+  dockerPorts.manager = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
     opensearch.start()
