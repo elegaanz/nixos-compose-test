@@ -141,22 +141,36 @@ in {
   dockerPorts.manager = [ "5601:5601" "9200:9200" ];
 
   testScript = ''
-    opensearch.start()
-    opensearch.wait_for_unit("opensearch.service")
-    opensearch.wait_for_open_port(9200)
+    for opensearch in [manager, data, ingest]:
+      opensearch.start()
+      opensearch.wait_for_unit("opensearch.service")
+      opensearch.wait_for_open_port(9200)
 
-    opensearch.succeed(
-      "curl --fail localhost:9200"
-    )
+      opensearch.succeed(
+        "curl --fail localhost:9200"
+      )
 
-    opensearch.wait_for_unit("vector.service")
+    vector.start()
+    vector.wait_for_unit("vector.service")
 
     # The inner curl command uses the Opensearch API and JQ to get the name of the Vector index
     # (this index contains the current date and thus has a different name every day).
     # The outer curl call just queries the content of the index and checks that it is in the expected
     # format with JQ
-    opensearch.succeed(
+    manager.succeed(
       "curl --fail http://localhost:9200/$(curl --fail http://localhost:9200/_stats | jq -r '.indices | keys[]' | grep vector | tail -n 1)/_search | jq '.hits.hits[0]._source'"
+    )
+
+    # This script gets the host name of all nodes in the cluster, and checks that all the expected nodes
+    # are present
+    manager.succeed(
+      "curl -s http://localhost:9200/_nodes/ | jq '.nodes.[] | .host' -r | grep ingest"
+    )
+    manager.succeed(
+      "curl -s http://localhost:9200/_nodes/ | jq '.nodes.[] | .host' -r | grep data"
+    )
+    manager.succeed(
+      "curl -s http://localhost:9200/_nodes/ | jq '.nodes.[] | .host' -r | grep manager"
     )
   '';
 }
