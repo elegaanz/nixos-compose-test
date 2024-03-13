@@ -89,18 +89,19 @@ in
           settings."plugins.security.authcz.admin_dn" = [ "CN=localhost" ];
           settings."plugins.security.ssl.transport.keystore_alias" = "opensearch";
           settings."plugins.security.ssl.transport.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
-          # Configuration des options Java supplémentaires (uniquement pour le service "opensearch")
-          # Les machines virtuelles créées avec `nxc build -f vm` n'ont qu'un Mo de mémoire vive
-          # Par défaut, la JVM demande plus de mémoire que ça et ne peut pas démarrer
-          # Avec ces options, on limite son utilisation de la RAM
+
+          # Additional Java options configuration (only for the "opensearch" service)
+          # Virtual machines created with `nxc build -f vm` only have 1MB of RAM
+          # By default, the JVM asks for more memory than that and cannot start
+          # With these options, we limit its RAM usage
           extraJavaOptions = [
-            "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-            "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+            "-Xmx512m" # Limit Java VM memory usage to 512 MB
+            "-Xms512m" # Java VM initial memory allocation set to 512 MB
           ];
         };
 
 
-        # Vector est système de gestion de logs
+        # Vector is a log management system
         services.vector = {
           enable = enable-vector;
           journaldAccess = true;
@@ -158,11 +159,10 @@ in
         services.colmet-node.enable = enable-colmet;
 
         environment.variables = lib.mkIf enable-vector {
-          # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
-          # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
-          # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
-          # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
-          # On parse la configuration systemd pour récupérer le chemin du fichier.
+          # The variable "VECTOR_CONFIG" defines the path to the configuration to use when running the `vector` command.
+          # The Systemd service generates a config from `services.vector.settings` and ensures that the service uses this file.
+          # However, it is also necessary to specify the location of this configuration file to the command line tool available in the PATH.
+          # We parse the systemd configuration to retrieve the path to the file.
           VECTOR_CONFIG = lib.lists.last (
             builtins.split " " config.systemd.services.vector.serviceConfig.ExecStart
           );
