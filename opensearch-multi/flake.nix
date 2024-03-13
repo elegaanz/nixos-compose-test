@@ -14,6 +14,7 @@
       packages.${system} = nxc.lib.compose {
         inherit nixpkgs system;
         composition = ./composition.nix;
+        overlays = [ (import ../opensearch-security.nix) ];
       };
 
       defaultPackage.${system} =
