@@ -15,8 +15,9 @@ in
       {
         imports = [ ../opensearch-dashboards.nix ../colmet.nix ];
 
+        security.pki.certificateFiles = [ "${pkgs.opensearch-root-cert}/cert.pem" ];
         environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch-fixed jq ] ++ (if enable-vector then [ vector ] else []);
+        environment.systemPackages = with pkgs; [ opensearch-fixed jq opensearch-root-cert ] ++ (if enable-vector then [ vector ] else []);
 
         systemd.services.opensearch.serviceConfig.ExecStartPre = [
           "${pkgs.writeShellScript
@@ -32,29 +33,20 @@ in
               -storepass '${keystore-password}' \
               -dname CN=localhost \
               -keyalg RSA \
+              -sigalg SHA256withRSA \
               -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
               -validity 36500
 
-            # Create a truststore with our own certificate
-            # export the cert from the keystore
-            cert_file=$(${pkgs.coreutils}/bin/mktemp)
-            ${pkgs.jre_headless}/bin/keytool \
-              -export \
-              -alias opensearch \
-              -storepass '${keystore-password}' \
-              -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
-              -file $cert_file
+              ${pkgs.jre_headless}/bin/keytool -certreq -alias opensearch -keystore /var/lib/opensearch/config/ssl-keystore.p12 -file /var/lib/opensearch/config/newkey.csr -storepass '${keystore-password}'
 
-            # import it
-            ${pkgs.jre_headless}/bin/keytool \
-              -import \
-              -noprompt \
-              -alias opensearch-cert \
-              -storepass '${truststore-password}' \
-              -keystore /var/lib/opensearch/config/ssl-truststore.p12 \
-              -file $cert_file
-            
-            ${pkgs.coreutils}/bin/rm $cert_file
+              ${pkgs.jre_headless}/bin/keytool -gencert -infile /var/lib/opensearch/config/newkey.csr -outfile /var/lib/opensearch/config/newkey.crt -alias opensearch-root-cert -keystore ${pkgs.opensearch-root-cert}/keystore.p12 -storepass '${keystore-password}'
+
+              ${pkgs.jre_headless}/bin/keytool -importcert -file ${pkgs.opensearch-root-cert}/root.crt -keystore /var/lib/opensearch/config/ssl-keystore.p12 -alias opensearch-root-cert -storepass '${keystore-password}' -noprompt
+              
+              ${pkgs.jre_headless}/bin/keytool -importcert -file /var/lib/opensearch/config/newkey.crt -keystore /var/lib/opensearch/config/ssl-keystore.p12 -alias opensearch -storepass '${keystore-password}' -noprompt
+
+              cp ${pkgs.opensearch-root-cert}/truststore.p12 /var/lib/opensearch/config/ssl-truststore.p12
+
           ''}"
         ];
         systemd.services.opensearch.serviceConfig.Restart = lib.mkForce "no";
@@ -71,6 +63,7 @@ in
               /var/lib/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
                 -ks /var/lib/opensearch/config/ssl-keystore.p12 \
                 -kspass '${keystore-password}' \
+                -ksalias opensearch \
                 -ts /var/lib/opensearch/config/ssl-truststore.p12 \
                 -tspass '${truststore-password}' \
                 -cd /var/lib/opensearch/config/opensearch-security
@@ -81,20 +74,21 @@ in
           enable = true;
           package = opensearch-fixed;
           settings."plugins.security.disabled" = false;
-          settings."plugins.security.ssl.transport.keystore_filepath" = "ssl-keystore.p12";
           settings."plugins.security.ssl.transport.keystore_type" = "PKCS12";
           settings."plugins.security.ssl.transport.keystore_password" = keystore-password;
-          settings."plugins.security.ssl.transport.truststore_filepath" = "ssl-truststore.p12";
+          settings."plugins.security.ssl.transport.truststore_filepath" = "/var/lib/opensearch/config/ssl-truststore.p12";
           settings."plugins.security.ssl.transport.truststore_type" = "PKCS12";
           settings."plugins.security.ssl.transport.truststore_password" = truststore-password;
           settings."plugins.security.ssl.http.enabled" = true;
-          settings."plugins.security.ssl.http.keystore_filepath" = "ssl-keystore.p12";
+          settings."plugins.security.ssl.http.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
           settings."plugins.security.ssl.http.keystore_type" = "PKCS12";
           settings."plugins.security.ssl.http.keystore_password" = keystore-password;
-          settings."plugins.security.ssl.http.truststore_filepath" = "ssl-truststore.p12";
+          settings."plugins.security.ssl.http.truststore_filepath" = "/var/lib/opensearch/config/ssl-truststore.p12";
           settings."plugins.security.ssl.http.truststore_type" = "PKCS12";
           settings."plugins.security.ssl.http.truststore_password" = truststore-password;
           settings."plugins.security.authcz.admin_dn" = [ "CN=localhost" ];
+          settings."plugins.security.ssl.transport.keystore_alias" = "opensearch";
+          settings."plugins.security.ssl.transport.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
           # Configuration des options Java supplémentaires (uniquement pour le service "opensearch")
           # Les machines virtuelles créées avec `nxc build -f vm` n'ont qu'un Mo de mémoire vive
           # Par défaut, la JVM demande plus de mémoire que ça et ne peut pas démarrer
