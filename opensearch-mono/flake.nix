@@ -17,7 +17,8 @@
         inherit nixpkgs system;
         NUR = nur;
         repoOverrides = { inherit kapack; };
-        composition = ./composition.nix;
+        composition = ./composition.nix; 
+        overlays = [ (import ../opensearch-pki.nix) ];
       };
 
       defaultPackage.${system} =

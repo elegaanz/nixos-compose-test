@@ -52,3 +52,33 @@ curl -k -u admin:admin https://localhost:9200/
 
 `-k` demande d'ignorer les certificats, et `-u admin:admin` permet
 de s'authentifier et d'avoir tous les droits.
+
+## Utiliser OpenSearch Dashboards
+
+OpenSearch Dashboards écoute sur le port `5601`. Un tunnel est
+automatiquement mis en place avec Docker, mais en VM ou sur un
+serveur, il faut [faire un tunnel SSH](../nxc/cheatsheet.md#port-forwarding).
+
+On peut ensuite ouvrir [`http://localhost:5601/`](http://localhost:5601)
+dans un navigateur.
+
+On peut se connecter avec l'user `admin` et le mot de passe `admin`.
+
+À la première connection, il sera demandé de choisir un « _tenant_ ».
+Il faut choisir « Private » pour avoir accès au Dashboard par défaut.
+Si jamais vous avez choisi un autre _tenant_ et que vous voulez changer,
+vous pouvez le faire à tout moment en cliquant sur votre avatar en haut
+à droite, puis sur « Switch tenants ».
+
+Un dashboard par défaut (assez minimaliste) est disponible.
+Pour le voir, cliquer sur « Visualize & analyze » (au centre de
+l'écran d'accueil), puis « Dashboard » puis « Vector data ».
+
+Il est possible de modifier ce Dashboard et d'y ajouter des
+visualisations. Pour sauvegarder les changements et les
+conserver même si la composition est relancée (ce qui efface
+toutes les données du système), il faut exporter les données.
+Pour celà, aller dans l'onglet « Manage » (en haut à droite
+de la page d'accueil), puis « Saved objects » (menu de gauche)
+puis exporter tous les objets (« Export X objects », en haut à droite).
+Le fichier `export.ndjson` doit être enregistré dans `opensearch-mono/export.ndjson`.
