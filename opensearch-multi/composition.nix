@@ -13,8 +13,8 @@ let
     package = opensearch-fixed;
 
     extraJavaOptions = [
-      "-Xmx512m" # Limite maximale de la mémoire utilisée par la machine virtuelle Java à 512 Mo
-      "-Xms512m" # Mémoire initiale allouée par la machine virtuelle Java à 512 Mo
+      "-Xmx512m" # Limit Java VM memory usage to 512 MB
+      "-Xms512m" # Java VM initial memory allocation set to 512 MB
     ];
 
     settings = {
@@ -39,8 +39,8 @@ let
       settings."node.roles" = [ role ];
     };
   };
-  # On ne connait pas les IP des nœuds à l'avance donc on
-  # génère ça dynamiquement
+  # We don't know the node IPs in advance
+  # so we generate them dynamically.
   populate-hosts-script = [
     "${
       pkgs.writeShellScriptBin "configure-opensearch" ''
@@ -127,11 +127,10 @@ in {
       };
 
       environment.variables = {
-        # La variable "VECTOR_CONFIG" défini le chemin de la configuration à utiliser quand on
-        # lance la commande `vector`. Le service Systemd génère une config à partir de `services.vector.settings`
-        # et s'assure que le service utilise bien ce fichier. Mais il faut aussi indiquer où ce trouve
-        # ce fichier de configuration à l'outil en ligne de commande disponible dans le PATH.
-        # On parse la configuration systemd pour récupérer le chemin du fichier.
+          # The variable "VECTOR_CONFIG" defines the path to the configuration to use when running the `vector` command.
+          # The Systemd service generates a config from `services.vector.settings` and ensures that the service uses this file.
+          # However, it is also necessary to specify the location of this configuration file to the command line tool available in the PATH.
+          # We parse the systemd configuration to retrieve the path to the file.
         VECTOR_CONFIG = lib.lists.last (builtins.split " "
           config.systemd.services.vector.serviceConfig.ExecStart);
       };

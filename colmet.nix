@@ -9,17 +9,17 @@ with lib;
 {
   config.environment.systemPackages = with pkgs; [ nur.repos.kapack.colmet ];
 
-  #option to enable the colmet collector
+  # option to enable the colmet collector
   options.services.colmet-collector = {
     enable = mkEnableOption (mdDoc "Enable the Colmet collector service");
   };
 
-  #option to enable colmet nodes
+  # option to enable colmet nodes
   options.services.colmet-node = {
     enable = mkEnableOption (mdDoc "Enable the Colmet node service");
   };
 
-  #if colmet-collector is enable
+  # if colmet-collector is enable
   config.systemd.services.colmet-collector = mkIf cfg-collector.enable {
     description = "Colmet collector";
     wantedBy = [ "multi-user.target" ];
@@ -36,7 +36,7 @@ with lib;
     };
   };
 
-  #if colmet-node is enable
+  # if colmet-node is enable
   config.systemd.services.colmet-node = mkIf cfg-node.enable {
     description = "Colmet node";
     wantedBy = [ "multi-user.target" ];
