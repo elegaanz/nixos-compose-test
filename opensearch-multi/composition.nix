@@ -27,7 +27,8 @@ let
     };
   };
   opensearch-node = role: {
-    imports = [ ../opensearch-dashboards.nix ];
+    imports = [ ../opensearch-dashboards.nix ../colmet.nix ];
+    
 
     boot.kernel.sysctl."vm.max_map_count" = 262144;
 
@@ -38,6 +39,7 @@ let
     services.opensearch = service-config {
       settings."node.roles" = [ role ];
     };
+    services.colmet-node.enable = true;
   };
   # We don't know the node IPs in advance
   # so we generate them dynamically.
@@ -135,6 +137,11 @@ in {
           config.systemd.services.vector.serviceConfig.ExecStart);
       };
     };
+    # colmet-collector = {pkgs, config, lib, ...}:{
+    #   imports=[../colmet.nix];
+    #   services.colmet-collector.enable =true;
+    # };
+
   };
 
   dockerPorts.manager = [ "5601:5601" "9200:9200" ];
