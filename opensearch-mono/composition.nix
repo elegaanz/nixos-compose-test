@@ -136,6 +136,24 @@ in
           };
         };
         services.opensearch-dashboards.enable = true;
+        systemd.services.opensearch-dashboards.serviceConfig.ExecStartPost = [
+          "${pkgs.writeShellScript
+          "configure-graphs"
+          ''
+            while ! ${pkgs.curl}/bin/curl --fail http://localhost:5601/; do
+              sleep 1
+            done
+          
+            ${pkgs.curl}/bin/curl -X POST \
+              -u admin:admin \
+              -H "osd-xsrf: osd-fetch" \
+              -H 'osd-version: 2.11.1' \
+              -H 'Origin: http://localhost:5601' \
+              'http://localhost:5601/api/saved_objects/_import?overwrite=true' \
+              --form file=@${./export.ndjson}
+          ''}"
+        ];
+
         services.colmet-collector.enable = enable-colmet;
         services.colmet-node.enable = enable-colmet;
 
