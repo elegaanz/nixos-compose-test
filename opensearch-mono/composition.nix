@@ -146,20 +146,17 @@ in
           "${pkgs.writeShellScript
           "configure-graphs"
           ''
-           ${pkgs.curl}/bin/curl -X POST 
-                 -H "Content-Type: application/json"
-                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/index_pattern"
-                 -d "@${./index-pattern.json}"
-
-           ${pkgs.curl}/bin/curl -X POST 
-                 -H "Content-Type: application/json"
-                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/visualization"
-                 -d "@${./visu.json}"
-
-           ${pkgs.curl}/bin/curl -X POST 
-                 -H "Content-Type: application/json"
-                 -H "kbn-xsrf: true" "http://localhost:5601/api/saved_objects/dashboard"
-                 -d "@${./dashboard.json}"
+            while ! ${pkgs.curl}/bin/curl --fail http://localhost:5601/; do
+              sleep 1
+            done
+          
+            ${pkgs.curl}/bin/curl -X POST \
+              -u admin:admin \
+              -H "osd-xsrf: osd-fetch" \
+              -H 'osd-version: 2.11.1' \
+              -H 'Origin: http://localhost:5601' \
+              'http://localhost:5601/api/saved_objects/_import?overwrite=true' \
+              --form file=@${./export.ndjson}
           ''}"
         ];
 
