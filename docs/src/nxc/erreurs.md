@@ -24,7 +24,17 @@ experimental-features = nix-command flakes
 
 ## CGroups V2
 
-*À rédiger*
+Avec Docker, il arrive que les containers ne se lancent pas, sans faire de
+message d'erreur.
+
+[Ce problème est connu](https://gitlab.inria.fr/nixos-compose/nixos-compose/-/issues/9).
+
+Pour contourner le problème, il faut désactiver `cgroups` V2 en
+[ajoutant ces options au Noyau Linux](https://wiki.archlinux.org/title/Kernel_parameters),
+sur la machine hôte: `systemd.unified_cgroup_hierarchy=0`.
+
+Cette solution a marché pour des machines sous ArchLinux, mais semble insuffisante
+si on est sous Ubuntu (dans ce cas nous avons préféré utiliser les VM Qemu).
 
 ## Beaucoup de paquets sont recompilés
 

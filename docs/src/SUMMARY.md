@@ -7,7 +7,6 @@
 - [OpenSearch mono-nœud](compositions/opensearch-mono.md)
 - [OpenSearch multi-nœud](compositions/opensearch-multi.md)
 - [K3S](compositions/k3s.md)
-- [Garage](compositions/garage.md)
 
 # Travailler avec `nxc`
 

@@ -5,11 +5,16 @@ Dossier de la composition : `opensearch-mono/`.
 Cette composition fait tourner sur un même nœud :
 
 - l'agrégateur de logs [Vector](https://vector.dev/).
+- l'outil de monitoring [Colmet](https://github.com/oar-team/colmet)
 - un serveur [OpenSearch](https://opensearch.org/).
 - un serveur [OpenSearch Dashboards](https://opensearch.org/docs/latest/dashboards/quickstart/)
 
 Vector récupère les logs `systemd` de tous les services de la machine
 et les stockes dans une base de données (« index ») OpenSearch (une par jour en fait).
+
+Colmet fait de même, en agrégeant des données depuis plusieurs machines.
+Ces données sont des métriques à propos de l'utilisation d'un système
+distribué, pas des logs. Elles sont stockés dans un autre index.
 
 OpenSearch Dashboards vient ensuite se connecter à l'API REST d'OpenSearch
 et propose une interface graphique pour consulter les données qui sont
@@ -22,21 +27,29 @@ OpenSearch Dashboards écoute sur le port `5601` : il faut penser à
 [forward ce port](../nxc/cheatsheet.md#port-forwarding) (c'est le cas 
 automatiquement avec Docker).
 
+## Sécurité
+
 Une grande partie du code de la composition est dédié à la configuration
 du plugin sécurité d'OpenSearch. Ce plugin est désactivé par défaut dans
 le module NixOS, mais OpenSearch Dashboards en a besoin pour authentifier
 et autoriser les utilisateurs.
 
-On crée un certificat auto-signé (stocké dans `ssl-keystore.p12`) pour le
+On crée un certificat racine (derivation `opensearch-root-cert`) et on
+signe un autre certificat avec (stocké dans `ssl-keystore.p12`) pour le
 serveur OpenSearch, qui servira à chiffrer les connexions à l'API REST et
 les échanges entre nœuds. On crée également une liste de certificats de
 confiance (dans `ssl-truststore.p12`) qui ne contient qu'un seul certificat :
-celui du nœud lui-même.
+le certificat racine. Cette mise en place est un peu plus complexe que ce
+qu'elle pourrait être, mais elle a l'avantage de bien s'adapter si on veut
+[déployer un cluster de plusieurs nœuds](./opensearch-multi.md), ce qui nous
+permet de partager du code entre nos différentes compositions.
 
 On crée ces fichiers principalement parce qu'ils sont demandés par le plugin
 `security`, en pratique ils ne sont pas (ou très peu) utilisés. En effet,
 il n'y a pas de traffic inter-nœuds, et on demande à OpenSearch Dashboards
 de ne pas vérifier les certificats.
+
+## Grid5000
 
 Pour lancer cette composition sur Grid5000, il faut utiliser le flavour g5k-nfs-store.
 Il est possible que l'ouverture des ports SSH prenne quelques dizaines de secondes.
@@ -44,14 +57,18 @@ Il est possible que l'ouverture des ports SSH prenne quelques dizaines de second
 Le flavour g5k-ramdisk fonctionne aussi mais les nœuds ne sont pas accessibles via nxc
 connect ou ssh dans ce cas de figure.
 
+## API REST
+
 Pour interagir avec l'API REST en ligne de commande, on peut utiliser :
 
 ```bash
-curl -k -u admin:admin https://localhost:9200/
+curl -u admin:admin https://localhost:9200/
 ```
+`-u admin:admin` permet de s'authentifier et d'avoir tous les droits.
 
-`-k` demande d'ignorer les certificats, et `-u admin:admin` permet
-de s'authentifier et d'avoir tous les droits.
+Si jamais des problèmes de certificats sont rencontrés, il est possible
+d'ajouter l'option `-k` à cURL pour les ignorer. Mais si tout va bien,
+il devraient être configurés comme il faut.
 
 ## Utiliser OpenSearch Dashboards
 
