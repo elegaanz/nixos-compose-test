@@ -28,7 +28,6 @@ let
   };
   opensearch-node = role: {
     imports = [ ../opensearch-dashboards.nix ../colmet.nix ];
-    
 
     boot.kernel.sysctl."vm.max_map_count" = 262144;
 
@@ -137,11 +136,12 @@ in {
           config.systemd.services.vector.serviceConfig.ExecStart);
       };
     };
-    # colmet-collector = {pkgs, config, lib, ...}:{
-    #   imports=[../colmet.nix];
-    #   services.colmet-collector.enable =true;
-    # };
-
+    colmet-collector = { pkgs, config, lib, ... }:
+    {
+      imports = [ ../colmet.nix ];
+      environment.noXlibs = false;
+      services.colmet-collector.enable =true;
+    };
   };
 
   dockerPorts.manager = [ "5601:5601" "9200:9200" ];
