@@ -112,6 +112,26 @@ in
       systemd.services.opensearch.serviceConfig.ExecStartPost = lib.mkForce [
         pkgs.wait-and-run-security-admin
       ];
+
+      # Upload default dashboard configuration
+      # TODO: this script was copied from opensearch-mono, de-duplicate it
+      systemd.services.opensearch-dashboards.serviceConfig.ExecStartPost = [
+        "${pkgs.writeShellScript
+        "configure-graphs"
+        ''
+          while ! ${pkgs.curl}/bin/curl --fail http://localhost:5601/; do
+            sleep 1
+          done
+        
+          ${pkgs.curl}/bin/curl -X POST \
+            -u admin:admin \
+            -H "osd-xsrf: osd-fetch" \
+            -H 'osd-version: 2.11.1' \
+            -H 'Origin: http://localhost:5601' \
+            'http://localhost:5601/api/saved_objects/_import?overwrite=true' \
+            --form file=@${./export.ndjson}
+        ''}"
+      ];
     };
 
     # The ingest node is responsible for pre-processing documents before they are indexed
