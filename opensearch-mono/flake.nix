@@ -18,7 +18,7 @@
         NUR = nur;
         repoOverrides = { inherit kapack; };
         composition = ./composition.nix; 
-        overlays = [ (import ../opensearch-pki.nix) ];
+        overlays = [ (import ../opensearch-security.nix) ];
       };
 
       defaultPackage.${system} =

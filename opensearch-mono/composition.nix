@@ -17,62 +17,19 @@ in
 
         security.pki.certificateFiles = [ "${pkgs.opensearch-root-cert}/cert.pem" ];
         environment.noXlibs = false;
-        environment.systemPackages = with pkgs; [ opensearch-fixed jq opensearch-root-cert ] ++ (if enable-vector then [ vector ] else []);
+        environment.systemPackages = with pkgs; [ opensearch-fixed jq ] ++ (if enable-vector then [ vector ] else []);
 
         systemd.services.opensearch.serviceConfig.ExecStartPre = [
-          "${pkgs.writeShellScript
-          "init-keystore"
-          ''
-            if [[ -f /var/lib/opensearch/config/ssl-keystore.p12 ]]; then
-              exit 0
-            fi
-
-            ${pkgs.jre_headless}/bin/keytool \
-              -genkeypair \
-              -alias opensearch \
-              -storepass '${keystore-password}' \
-              -dname CN=localhost \
-              -keyalg RSA \
-              -sigalg SHA256withRSA \
-              -keystore /var/lib/opensearch/config/ssl-keystore.p12 \
-              -validity 36500
-
-              ${pkgs.jre_headless}/bin/keytool -certreq -alias opensearch -keystore /var/lib/opensearch/config/ssl-keystore.p12 -file /var/lib/opensearch/config/newkey.csr -storepass '${keystore-password}'
-
-              ${pkgs.jre_headless}/bin/keytool -gencert -infile /var/lib/opensearch/config/newkey.csr -outfile /var/lib/opensearch/config/newkey.crt -alias opensearch-root-cert -keystore ${pkgs.opensearch-root-cert}/keystore.p12 -storepass '${keystore-password}'
-
-              ${pkgs.jre_headless}/bin/keytool -importcert -file ${pkgs.opensearch-root-cert}/root.crt -keystore /var/lib/opensearch/config/ssl-keystore.p12 -alias opensearch-root-cert -storepass '${keystore-password}' -noprompt
-              
-              ${pkgs.jre_headless}/bin/keytool -importcert -file /var/lib/opensearch/config/newkey.crt -keystore /var/lib/opensearch/config/ssl-keystore.p12 -alias opensearch -storepass '${keystore-password}' -noprompt
-
-              cp ${pkgs.opensearch-root-cert}/truststore.p12 /var/lib/opensearch/config/ssl-truststore.p12
-
-          ''}"
+          pkgs.init-keystore
         ];
-        systemd.services.opensearch.serviceConfig.Restart = lib.mkForce "no";
         systemd.services.opensearch.serviceConfig.ExecStartPost = lib.mkForce [
-          "${pkgs.writeShellScript
-          "wait-and-run-securityadmin"
-          ''
-            # wait for opensearch to start
-            while ! ${pkgs.nettools}/bin/netstat -tlnp | grep ':9200' ; do
-              sleep 1
-            done
-
-            ${pkgs.coreutils}/bin/env JAVA_HOME="${pkgs.jre_headless}" \
-              /var/lib/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
-                -ks /var/lib/opensearch/config/ssl-keystore.p12 \
-                -kspass '${keystore-password}' \
-                -ksalias opensearch \
-                -ts /var/lib/opensearch/config/ssl-truststore.p12 \
-                -tspass '${truststore-password}' \
-                -cd /var/lib/opensearch/config/opensearch-security
-          ''}"
+          pkgs.wait-and-run-security-admin
         ];
 
         services.opensearch = {
           enable = true;
           package = opensearch-fixed;
+          settings."network.bind_host" = "0.0.0.0";
           settings."plugins.security.disabled" = false;
           settings."plugins.security.ssl.transport.keystore_type" = "PKCS12";
           settings."plugins.security.ssl.transport.keystore_password" = keystore-password;
@@ -86,7 +43,7 @@ in
           settings."plugins.security.ssl.http.truststore_filepath" = "/var/lib/opensearch/config/ssl-truststore.p12";
           settings."plugins.security.ssl.http.truststore_type" = "PKCS12";
           settings."plugins.security.ssl.http.truststore_password" = truststore-password;
-          settings."plugins.security.authcz.admin_dn" = [ "CN=localhost" ];
+          settings."plugins.security.authcz.admin_dn" = [ "CN=admin_secu_le_boss" ];
           settings."plugins.security.ssl.transport.keystore_alias" = "opensearch";
           settings."plugins.security.ssl.transport.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
 

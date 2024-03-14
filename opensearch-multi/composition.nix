@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ lib, pkgs, ... }:
 let
   keystore-password = "usAe#%EX92R7UHSYwJ";
   truststore-password = "*!YWptTiu3&okU%E9a";
@@ -22,8 +22,28 @@ let
       "cluster.name" = cluster-name;
       "network.bind_host" = "0.0.0.0";
       "network.host" = "localhost";
-      "plugins.security.disabled" = true; # TODO: for the moment we disable the security plugin
       "discovery.type" = "zen";
+
+      # Security configuration
+      "plugins.security.disabled" = false;
+      "plugins.security.ssl.transport.keystore_type" = "PKCS12";
+      "plugins.security.ssl.transport.keystore_password" = keystore-password;
+      "plugins.security.ssl.transport.keystore_alias" = "opensearch";
+      "plugins.security.ssl.transport.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
+      "plugins.security.ssl.transport.truststore_filepath" = "/var/lib/opensearch/config/ssl-truststore.p12";
+      "plugins.security.ssl.transport.truststore_type" = "PKCS12";
+      "plugins.security.ssl.transport.truststore_password" = truststore-password;
+      
+      "plugins.security.ssl.http.enabled" = true;
+      "plugins.security.ssl.http.keystore_filepath" = "/var/lib/opensearch/config/ssl-keystore.p12";
+      "plugins.security.ssl.http.keystore_type" = "PKCS12";
+      "plugins.security.ssl.http.keystore_password" = keystore-password;
+      "plugins.security.ssl.http.truststore_filepath" = "/var/lib/opensearch/config/ssl-truststore.p12";
+      "plugins.security.ssl.http.truststore_type" = "PKCS12";
+      "plugins.security.ssl.http.truststore_password" = truststore-password;
+      
+      "plugins.security.authcz.admin_dn" = [ "CN=admin_secu_le_boss" ];
+      "plugins.security.nodes_dn" = [ "CN=manager*" "CN=data*" "CN=ingest*" ];
     };
   };
   opensearch-node = role: {
@@ -34,7 +54,10 @@ let
     environment.noXlibs = false;
     environment.systemPackages = with pkgs; [ opensearch-fixed jq ];
 
-    systemd.services.opensearch.serviceConfig.ExecStartPre = populate-hosts-script;
+    systemd.services.opensearch.serviceConfig.ExecStartPre = [
+      pkgs.init-keystore
+    ] ++ populate-hosts-script;
+
     services.opensearch = service-config {
       settings."node.roles" = [ role ];
     };
@@ -77,14 +100,18 @@ let
         fi
 
         # Replace localhost with the actual hostname
-        sed -i "s/localhost/$(hostname)/" $CONF
+        sed -i "s/ localhost/ $(hostname)/" $CONF
       ''
     }/bin/configure-opensearch"
   ];
-in {
+in
+{
   roles = {
     manager = { pkgs, config, lib, ... }: lib.recursiveUpdate (opensearch-node "cluster_manager") {
       services.opensearch-dashboards.enable = true;
+      systemd.services.opensearch.serviceConfig.ExecStartPost = lib.mkForce [
+        pkgs.wait-and-run-security-admin
+      ];
     };
 
     # The ingest node is responsible for pre-processing documents before they are indexed
@@ -114,7 +141,7 @@ in {
             opensearch = {
               inputs = [ "systemd" ];
               type = "elasticsearch";
-              endpoints = [ "https://clusterManager:9200" ];
+              endpoints = [ "https://manager:9200" ];
               auth = {
                 strategy = "basic";
                 user = "admin";
